@@ -1,4 +1,4 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readdir, readFile, writeFile } from "node:fs/promises";
 import { join } from "node:path";
 
 type Fetch = typeof fetch;
@@ -32,15 +32,31 @@ export function recordingFetch(dir: string, inner: Fetch = fetch): Fetch {
   };
 }
 
+// The model words its search differently from run to run, so a replay falls back to the
+// recording's only search. Product lookups must match exactly.
+async function onlySearch(dir: string): Promise<string | undefined> {
+  const searches = (await readdir(dir)).filter((file) =>
+    file.startsWith("search--"),
+  );
+  return searches.length === 1 ? searches[0] : undefined;
+}
+
 export function replayFetch(dir: string): Fetch {
   return async (input) => {
     const key = recordingKey(urlOf(input));
-    try {
-      return new Response(await readFile(join(dir, key), "utf8"));
-    } catch {
-      throw new Error(
-        `No recorded response for ${key}. Replays cannot fetch new data, so skip it.`,
-      );
+    const fallback = key.startsWith("search--")
+      ? await onlySearch(dir)
+      : undefined;
+    for (const file of [key, fallback]) {
+      if (!file) continue;
+      try {
+        return new Response(await readFile(join(dir, file), "utf8"));
+      } catch {
+        // Try the next candidate file.
+      }
     }
+    throw new Error(
+      `No recorded response for ${key}. Replays cannot fetch new data, so skip it.`,
+    );
   };
 }

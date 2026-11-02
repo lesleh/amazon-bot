@@ -45,4 +45,20 @@ describe("recording and replay", () => {
       "No recorded response for product_top-reviews--asin=B000TEST01&domain=UK.json",
     );
   });
+
+  it("falls back to the only recorded search for a reworded query", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "amazon-bot-"));
+    const search = (term: string) =>
+      new URL(
+        `https://rest.canopyapi.co/api/amazon/search?domain=UK&searchTerm=${term}`,
+      );
+    await recordingFetch(
+      dir,
+      async () => new Response('{"term":"a"}'),
+    )(search("cat+food"));
+
+    const replayed = await replayFetch(dir)(search("dry+cat+food"));
+
+    expect(await replayed.json()).toEqual({ term: "a" });
+  });
 });
