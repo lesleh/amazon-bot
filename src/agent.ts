@@ -5,6 +5,7 @@ import {
 import { stepCountIs, ToolLoopAgent } from "ai";
 import { claudeCode, createAiSdkMcpServer } from "ai-sdk-provider-claude-code";
 import type { CanopyClient } from "./canopy.ts";
+import { findClaudeExecutable } from "./claude-path.ts";
 import { type CanopyToolsOptions, createCanopyTools } from "./tools.ts";
 
 export const PROVIDERS = ["claude-code", "anthropic"] as const;
@@ -38,6 +39,7 @@ export function createShopperAgent({
     // Claude Code runs its own tool loop, so the Canopy tools go in as an MCP server.
     return new ToolLoopAgent({
       model: claudeCode(modelId, {
+        pathToClaudeCodeExecutable: findClaudeExecutable(),
         systemPrompt: instructions,
         tools: ["WebSearch"],
         mcpServers: { canopy: createAiSdkMcpServer("canopy", canopyTools) },
