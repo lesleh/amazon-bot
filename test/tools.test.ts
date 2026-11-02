@@ -4,27 +4,48 @@ import { createCanopyTools } from "../src/tools.ts";
 
 const options = { toolCallId: "1", messages: [], context: {} };
 
-function toolsReturning(
-  body: unknown,
+// Answers each Canopy path with its own body, so multi-request tools can be tested.
+function toolsWith(
+  bodies: Record<string, unknown>,
   { budget = 5, status = 200, onFatalError = vi.fn() } = {},
 ) {
-  const fetch = vi.fn(
-    async () => new Response(JSON.stringify(body), { status }),
-  );
-  return createCanopyTools(createCanopyClient({ apiKey: "k", budget, fetch }), {
-    onFatalError,
+  const fetch = vi.fn(async (url: URL | RequestInfo) => {
+    const path = new URL(String(url)).pathname.replace("/api/amazon", "");
+    return new Response(JSON.stringify(bodies[path] ?? {}), { status });
   });
+  const tools = createCanopyTools(
+    createCanopyClient({ apiKey: "k", budget, fetch }),
+    { onFatalError },
+  );
+  return { tools, fetch };
 }
 
-function product(isPrime: boolean | null) {
-  return {
-    data: { amazonProduct: { asin: "B000TEST01", title: "Drill", isPrime } },
-  };
+const productBody = {
+  data: {
+    amazonProduct: {
+      asin: "B000TEST01",
+      title: "Drill",
+      price: { display: "£45.00" },
+      seller: { sellerId: "LISTING", name: "Listing seller" },
+    },
+  },
+};
+
+function offersBody(...offers: unknown[]) {
+  return { data: { amazonProduct: { offersPaginated: { offers } } } };
 }
+
+const amazonOffer = {
+  price: { display: "£39.99" },
+  isPrime: true,
+  buyboxWinner: true,
+  delivery: { fulfilledByAmazon: true },
+  seller: { id: "AMZ", name: "Amazon" },
+};
 
 describe("createCanopyTools", () => {
   it("returns budget errors to the model instead of throwing", async () => {
-    const tools = toolsReturning({}, { budget: 0 });
+    const { tools } = toolsWith({}, { budget: 0 });
 
     const output = await tools.get_product.execute?.(
       { asin: "B000TEST01" },
@@ -40,7 +61,7 @@ describe("createCanopyTools", () => {
     "reports HTTP %i from Canopy as a fatal error",
     async (status) => {
       const onFatalError = vi.fn();
-      const tools = toolsReturning({}, { status, onFatalError });
+      const { tools } = toolsWith({}, { status, onFatalError });
 
       const output = await tools.get_product.execute?.(
         { asin: "B000TEST01" },
@@ -54,65 +75,52 @@ describe("createCanopyTools", () => {
 
   it("does not treat other Canopy errors as fatal", async () => {
     const onFatalError = vi.fn();
-    const tools = toolsReturning({}, { status: 500, onFatalError });
+    const { tools } = toolsWith({}, { status: 500, onFatalError });
 
     await tools.get_product.execute?.({ asin: "B000TEST01" }, options);
 
     expect(onFatalError).not.toHaveBeenCalled();
   });
 
-  it("drops search results without Prime", async () => {
-    const result = (asin: string, isPrime?: boolean) => ({
-      asin,
-      title: asin,
-      isPrime,
+  it("returns a Prime product with its buy box price and seller", async () => {
+    const { tools } = toolsWith({
+      "/product/offers": offersBody(
+        { ...amazonOffer, isPrime: false, buyboxWinner: null },
+        amazonOffer,
+      ),
+      "/product": productBody,
     });
-    const tools = toolsReturning({
-      data: {
-        amazonProductSearchResults: {
-          productResults: {
-            results: [
-              result("PRIME", true),
-              result("NOT", false),
-              result("UNKNOWN"),
-            ],
-          },
-        },
-      },
-    });
-
-    const output = await tools.search_amazon.execute?.(
-      { query: "drill" },
-      options,
-    );
-
-    expect(output).toEqual([expect.objectContaining({ asin: "PRIME" })]);
-  });
-
-  it("returns a Prime product", async () => {
-    const tools = toolsReturning(product(true));
 
     const output = await tools.get_product.execute?.(
       { asin: "B000TEST01" },
       options,
     );
 
-    expect(output).toMatchObject({ asin: "B000TEST01", isPrime: true });
+    expect(output).toMatchObject({
+      asin: "B000TEST01",
+      price: "£39.99",
+      buyBox: { seller: { name: "Amazon" }, fulfilledByAmazon: true },
+    });
+    expect(output).not.toHaveProperty("seller");
   });
 
-  it.each([false, null])(
-    "refuses a product with isPrime %s",
-    async (isPrime) => {
-      const tools = toolsReturning(product(isPrime));
+  it.each([
+    ["the buy box offer is not Prime", { ...amazonOffer, isPrime: false }],
+    ["no offer wins the buy box", { ...amazonOffer, buyboxWinner: null }],
+  ])("refuses a product when %s, after one request", async (_, offer) => {
+    const { tools, fetch } = toolsWith({
+      "/product/offers": offersBody(offer),
+      "/product": productBody,
+    });
 
-      const output = await tools.get_product.execute?.(
-        { asin: "B000TEST01" },
-        options,
-      );
+    const output = await tools.get_product.execute?.(
+      { asin: "B000TEST01" },
+      options,
+    );
 
-      expect(output).toEqual({
-        error: "B000TEST01 is not available with Prime. Skip it.",
-      });
-    },
-  );
+    expect(output).toEqual({
+      error: "B000TEST01 is not available with Prime. Skip it.",
+    });
+    expect(fetch).toHaveBeenCalledOnce();
+  });
 });

@@ -35,30 +35,39 @@ export function createCanopyTools(
   return {
     search_amazon: tool({
       description:
-        "Search amazon.co.uk. Returns only Prime products, up to 20, with price, rating, rating count and a sponsored flag. Costs one request.",
+        "Search amazon.co.uk. Returns up to 20 products with price, rating, rating count and a sponsored flag. Prime is not known yet: get_product checks it. Costs one request.",
       inputSchema: z.object({
         query: z
           .string()
           .describe("A plain search query, as a shopper would type it"),
         page: z.number().int().min(1).optional(),
       }),
-      execute: ({ query, page }) =>
-        safely(async () =>
-          (await canopy.search(query, page)).filter((p) => p.isPrime === true),
-        ),
+      execute: ({ query, page }) => safely(() => canopy.search(query, page)),
     }),
 
     get_product: tool({
       description:
-        "Get one product's details: brand, price, seller, rating breakdown, feature bullets and specifications. Returns an error for a product without Prime. Costs one request.",
+        "Check that a product is available with Prime, then get its details: brand, buy box price and seller, rating breakdown, feature bullets and specifications. Returns an error for a product without Prime. Costs one request for a product without Prime, two otherwise.",
       inputSchema: z.object({ asin }),
       execute: ({ asin }) =>
         safely(async () => {
-          const product = await canopy.product(asin);
-          if (product.isPrime !== true) {
+          // Only the offers report Prime reliably; product and search results always say false.
+          const buyBox = (await canopy.offers(asin)).find(
+            (offer) => offer.buyboxWinner === true,
+          );
+          if (buyBox?.isPrime !== true) {
             throw new Error(`${asin} is not available with Prime. Skip it.`);
           }
-          return product;
+          const { seller: _listingSeller, ...product } =
+            await canopy.product(asin);
+          return {
+            ...product,
+            price: buyBox.price ?? product.price,
+            buyBox: {
+              seller: buyBox.seller,
+              fulfilledByAmazon: buyBox.fulfilledByAmazon,
+            },
+          };
         }),
     }),
 
@@ -73,7 +82,7 @@ export function createCanopyTools(
       description:
         "Get a third-party seller's profile: rating, about text and up to 10 of their other products. Costs one request.",
       inputSchema: z.object({
-        sellerId: z.string().describe("The seller ID from get_product"),
+        sellerId: z.string().describe("The buy box seller ID from get_product"),
       }),
       execute: ({ sellerId }) => safely(() => canopy.seller(sellerId)),
     }),

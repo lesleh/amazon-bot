@@ -37,7 +37,6 @@ const searchResult = z.object({
   price,
   rating: z.number().nullish(),
   ratingsTotal: z.number().nullish(),
-  isPrime: z.boolean().nullish(),
   sponsored: z.boolean().nullish(),
   coupon,
 });
@@ -54,7 +53,6 @@ const product = z.object({
   asin: z.string(),
   title: z.string(),
   brand: z.string().nullish(),
-  isPrime: z.boolean().nullish(),
   isInStock: z.boolean().nullish(),
   price,
   coupon,
@@ -108,6 +106,38 @@ const topReviewsResponse = z.object({
   }),
 });
 
+const offer = z
+  .object({
+    price,
+    isPrime: z.boolean().nullish(),
+    buyboxWinner: z.boolean().nullish(),
+    delivery: z.object({ fulfilledByAmazon: z.boolean().nullish() }).nullish(),
+    seller: z
+      .object({
+        id: z.string().nullish(),
+        name: z.string().nullish(),
+        rating: z.number().nullish(),
+        ratingsPercentagePositive: z.number().nullish(),
+        ratingsTotal: z.number().nullish(),
+      })
+      .nullish(),
+  })
+  .transform(({ delivery, ...rest }) => ({
+    ...rest,
+    fulfilledByAmazon: delivery?.fulfilledByAmazon ?? null,
+  }));
+
+const offersResponse = z.object({
+  data: z.object({
+    amazonProduct: z.object({
+      offersPaginated: z
+        .object({ offers: z.array(offer) })
+        .nullish()
+        .transform((o) => o?.offers ?? []),
+    }),
+  }),
+});
+
 const sellerResponse = z.object({
   data: z.object({
     amazonSeller: z.object({
@@ -126,6 +156,7 @@ const sellerResponse = z.object({
 export type SearchResult = z.infer<typeof searchResult>;
 export type Product = z.infer<typeof product>;
 export type Review = z.infer<typeof review>;
+export type Offer = z.infer<typeof offer>;
 export type Seller = z.infer<typeof sellerResponse>["data"]["amazonSeller"];
 
 export interface CanopyClientOptions {
@@ -181,6 +212,12 @@ export function createCanopyClient({
     async product(asin: string): Promise<Product> {
       const body = await get("/product", { asin }, productResponse);
       return body.data.amazonProduct;
+    },
+
+    // First page of offers only; the buy box offer is on it.
+    async offers(asin: string): Promise<Offer[]> {
+      const body = await get("/product/offers", { asin }, offersResponse);
+      return body.data.amazonProduct.offersPaginated;
     },
 
     async topReviews(asin: string): Promise<Review[]> {
