@@ -26,6 +26,10 @@ Options:
 - `--provider <name>`: `claude-code` (default) uses your Claude Code sign-in. `anthropic` uses the Anthropic API and needs `ANTHROPIC_API_KEY`.
 - `--model <id>`: the Claude model to use (default `claude-haiku-5-5`). Use full model IDs: through Claude Code, aliases such as `haiku` can resolve to an older model.
 
+## Household profile
+
+To give the agent facts about your household with every request, copy `profile.example.md` to `profile.md` and edit it. For example, the number of pets changes how long a bag of food lasts. When the profile and your request disagree, the agent follows the request. `profile.md` is not committed.
+
 ## Recording and replay
 
 Each Canopy request costs money, so you can record a run once and replay it while you change the prompt:

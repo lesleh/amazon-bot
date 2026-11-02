@@ -8,7 +8,7 @@ import {
   type ProviderName,
 } from "./agent.ts";
 import { createCanopyClient } from "./canopy.ts";
-import { loadInstructions } from "./prompt.ts";
+import { loadInstructions, loadProfile, withProfile } from "./prompt.ts";
 import { recordingFetch, replayFetch } from "./recording.ts";
 import { finalReport } from "./report.ts";
 import { CANOPY_TOOL_NAMES, DEFAULT_MAX_CANDIDATES } from "./tools.ts";
@@ -138,7 +138,7 @@ async function main(): Promise<number> {
   let result: Awaited<ReturnType<typeof agent.generate>>;
   try {
     result = await agent.generate({
-      prompt: options.request,
+      prompt: withProfile(options.request, await loadProfile()),
       abortSignal: abort.signal,
       // Canopy tools log as they start; the rest, such as web search, log per step.
       onStepEnd: (step) => {
