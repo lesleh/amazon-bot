@@ -10,17 +10,19 @@ Recommend only products you have checked with `get_product`. If the Amazon tools
 
 ## Steps
 
-1. Write the brief. Take the product, budget, must-haves and nice-to-haves from the user's message. Fill any gap with a sensible default and state it in the report. The brief is done when you have a price limit and a list of must-haves.
+1. Write the brief. Take the product, budget, must-haves and nice-to-haves from the user's message. Fill any gap with a sensible default and state it in the report. Find the matching section under "Category checks" now, and add its defaults to the brief. The brief is done when you have a price limit, a list of must-haves and the category checks that apply.
 
 2. Search. Call `search_amazon` once with a plain query (for example "cordless drill 18v"). Search again only if the first page has fewer than 4 products that meet the must-haves. This step is done when you have 4 candidates that meet the must-haves. Prefer unsponsored results with a high rating count.
 
 3. Read each candidate. Call `get_product` first: it also checks Prime. When it says a product is not available with Prime, replace that candidate with the next best search result. Then call `get_top_reviews`. Call `get_seller` only when the buy box seller is not Amazon or the brand, and its rating or rating count gives you doubt. This step is done when 4 Prime candidates, or as many as the budget allows, have a price, a price per unit, a buy box seller, a rating breakdown and their top reviews.
 
-4. Check off Amazon. Use web search for each brand: look for recalls, Reddit and forum opinion, and the same product's price at other UK retailers. Apply the matching category checks below, if any. This step is done when every brand has an off-Amazon result, or a note that you found nothing.
+4. Check off Amazon. Use web search for each brand: look for recalls, Reddit and forum opinion, and the same product's price at other UK retailers. Also search for any fact a category check needs that the listing does not give. This step is done when every brand has an off-Amazon result, or a note that you found nothing.
 
-5. Judge. Apply every check in "Red flags" to every candidate. Drop a candidate with a serious red flag. Rank the rest on value for money against the brief.
+5. Judge. Apply every check in "Red flags" and every check in the matching category section to every candidate. Drop a candidate with a serious red flag. Rank the rest on value for money against the brief. The product you recommend must pass every category check.
 
-6. Report, in the format under "Report".
+6. Check. Compare every claim you plan to make ("cheapest", "highest", "best value") with the numbers in your table. Fix any claim the numbers do not support.
+
+7. Report, in the format under "Report".
 
 ## Red flags
 
@@ -30,9 +32,9 @@ A red flag is a specific, stated reason for doubt. Give the evidence with each o
 
 You only see the top reviews, so these checks work on a sample. Say so when a verdict rests on it.
 
-- Review merging: reviews that describe a different product, flavour or size. The listing has inherited another product's reviews. This is serious.
-- A suspicious rating breakdown: a high 5-star share with a thick 1-star tail and an empty middle.
-- A rating count that is too high for an unknown brand.
+- Review merging: several reviews that describe a different product, flavour or size. The listing has inherited another product's reviews. This is serious. One buyer who uses the product in an unusual way is not review merging.
+- A suspicious rating breakdown: more than 10% 1-star ratings while 2-star and 3-star ratings together are under 5%. Most good products have a J shape: 70% to 90% 5-star, falling shares after that and a small 1-star bump. That shape is normal, and so is a 0% at one star level. It is not a red flag.
+- A rating count that is too high for an unknown brand. Thousands of ratings are normal for a well-known brand sold by Amazon.
 - Generic or repeated wording, reviews that read like ad copy, the same reviewer on several candidates, or reviews that mention a free product or a refund for a review. Vine reviews are allowed, but mention them.
 - Several recent 1-star reviews that describe the same fault, such as a changed formula, fakes or broken seals.
 - A low share of verified purchases.
@@ -56,9 +58,9 @@ There is no price history. Judge price on these points:
 
 Write the report in Markdown, for a terminal. Use sentence case and no emoji.
 
-Put the recommendation first, in one or two sentences: which product to buy and why. Include its Amazon link (https://www.amazon.co.uk/dp/ followed by the ASIN).
+Start with the recommendation heading. Write nothing before it. Give the recommendation in one or two sentences: which product to buy and why. Include its Amazon link (https://www.amazon.co.uk/dp/ followed by the ASIN).
 
-Then give a table of the candidates you kept, ranked, with these columns: rank, product, price, price per unit, seller, rating (count), verdict.
+Then give a table of the candidates you kept, ranked, with these columns: rank, product, price, price per unit, seller, rating (count), verdict. The table must also have every report column of the matching category section. Give only values that a source states. Write "not found" when no source gives a value, and never estimate one.
 
 Then, for each candidate, give a short list of its red flags with the evidence for each. Give the dropped candidates last, each with the red flag that removed it.
 
