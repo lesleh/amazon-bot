@@ -13,6 +13,7 @@ import { recordingFetch, replayFetch } from "./recording.ts";
 import { finalReport } from "./report.ts";
 import { CANOPY_TOOL_NAMES, DEFAULT_MAX_CANDIDATES } from "./tools.ts";
 import { formatModelCosts, formatUsage, type ModelCost } from "./usage.ts";
+import { MAX_WEB_SEARCHES } from "./web-search-limit.ts";
 
 const USAGE = `Usage: pnpm shop "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>] [--record <dir> | --replay <dir>]
 
@@ -126,6 +127,7 @@ async function main(): Promise<number> {
     instructions: await loadInstructions({
       budget: options.budget,
       candidates: DEFAULT_MAX_CANDIDATES,
+      searches: MAX_WEB_SEARCHES,
     }),
     provider: options.provider,
     modelId: options.model,

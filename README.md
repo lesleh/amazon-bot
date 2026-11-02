@@ -2,7 +2,7 @@
 
 A command line agent that searches amazon.co.uk for something you want to buy. It checks the reviews, price and seller of the top results, then recommends one. It only considers products available with Prime.
 
-It uses the Vercel AI SDK with Claude, gets Amazon data from [Canopy API](https://canopyapi.co) and checks brands with web search.
+It uses the Vercel AI SDK with Claude, gets Amazon data from [Canopy API](https://canopyapi.co) and checks brands with web search. Each web search costs about 1 cent, so a run makes at most 6.
 
 ## Setup
 

@@ -7,6 +7,7 @@ import { claudeCode, createAiSdkMcpServer } from "ai-sdk-provider-claude-code";
 import type { CanopyClient } from "./canopy.ts";
 import { findClaudeExecutable } from "./claude-path.ts";
 import { type CanopyToolsOptions, createCanopyTools } from "./tools.ts";
+import { MAX_WEB_SEARCHES, webSearchLimitHook } from "./web-search-limit.ts";
 
 export const PROVIDERS = ["claude-code", "anthropic"] as const;
 export type ProviderName = (typeof PROVIDERS)[number];
@@ -48,6 +49,9 @@ export function createShopperAgent({
           ...Object.keys(canopyTools).map((name) => `mcp__canopy__${name}`),
         ],
         maxTurns: MAX_STEPS,
+        hooks: {
+          PreToolUse: [{ matcher: "WebSearch", hooks: [webSearchLimitHook()] }],
+        },
       }),
     });
   }
@@ -58,7 +62,7 @@ export function createShopperAgent({
     tools: {
       ...canopyTools,
       web_search: anthropic.tools.webSearch_20260209({
-        maxUses: 10,
+        maxUses: MAX_WEB_SEARCHES,
         userLocation: { type: "approximate", country: "GB" },
       }),
     },

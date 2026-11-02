@@ -5,10 +5,11 @@ const PROMPTS_DIR = new URL("../prompts/", import.meta.url);
 export interface PromptValues {
   budget: number;
   candidates: number;
+  searches: number;
 }
 
 export async function loadInstructions(
-  { budget, candidates }: PromptValues,
+  { budget, candidates, searches }: PromptValues,
   dir: URL = PROMPTS_DIR,
 ): Promise<string> {
   const base = await readFile(new URL("instructions.md", dir), "utf8");
@@ -23,6 +24,7 @@ export async function loadInstructions(
 
   const filled = base
     .replaceAll("{{budget}}", String(budget))
-    .replaceAll("{{candidates}}", String(candidates));
+    .replaceAll("{{candidates}}", String(candidates))
+    .replaceAll("{{searches}}", String(searches));
   return [filled, ...categories].map((part) => part.trim()).join("\n\n");
 }
