@@ -11,9 +11,9 @@ import { createCanopyClient } from "./canopy.ts";
 import { loadInstructions } from "./prompt.ts";
 import { finalReport } from "./report.ts";
 
-const USAGE = `Usage: npm run shop -- "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>]
+const USAGE = `Usage: pnpm shop "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>]
 
-Example: npm run shop -- "a cordless drill for light DIY, under £80"`;
+Example: pnpm shop "a cordless drill for light DIY, under £80"`;
 
 export interface CliOptions {
   request: string;

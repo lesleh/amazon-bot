@@ -8,14 +8,14 @@ It uses the Vercel AI SDK with Claude, gets Amazon data from [Canopy API](https:
 
 You need Node 24 or later. By default the agent runs through Claude Code, so you also need Claude Code installed and signed in.
 
-1. Run `npm install`.
+1. Run `pnpm install`.
 2. Copy `.env.example` to `.env`.
 3. Add your Canopy API key to `.env`. Add an Anthropic API key only if you use `--provider anthropic`.
 
 ## Usage
 
 ```sh
-npm run shop -- "a cordless drill for light DIY, under £80"
+pnpm shop "a cordless drill for light DIY, under £80"
 ```
 
 The report goes to standard output. Progress and request counts go to standard error.
@@ -33,7 +33,7 @@ The agent's instructions are in `prompts/instructions.md`. To add checks for a t
 ## Development
 
 ```sh
-npm test
-npm run typecheck
-npm run lint
+pnpm test
+pnpm typecheck
+pnpm lint
 ```
