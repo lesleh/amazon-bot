@@ -1,6 +1,6 @@
 import type { LanguageModelUsage } from "ai";
 import { describe, expect, it } from "vitest";
-import { formatUsage } from "../src/usage.ts";
+import { formatModelCosts, formatUsage } from "../src/usage.ts";
 
 const usage = {
   inputTokens: 110844,
@@ -22,5 +22,24 @@ describe("formatUsage", () => {
 
   it("leaves out the cost when the provider does not report one", () => {
     expect(formatUsage(usage)).not.toContain("Model cost");
+  });
+});
+
+describe("formatModelCosts", () => {
+  it("gives one line per model", () => {
+    expect(
+      formatModelCosts({
+        "claude-haiku-5-5": {
+          costUSD: 0.0182,
+          inputTokens: 15573,
+          outputTokens: 1824,
+          cacheReadInputTokens: 80367,
+          cacheCreationInputTokens: 24689,
+          webSearchRequests: 1,
+        },
+      }),
+    ).toEqual([
+      "  claude-haiku-5-5: $0.018 (15,573 uncached in, 80,367 cache reads, 24,689 cache writes, 1,824 out, 1 web searches)",
+    ]);
   });
 });

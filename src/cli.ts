@@ -12,7 +12,7 @@ import { loadInstructions } from "./prompt.ts";
 import { recordingFetch, replayFetch } from "./recording.ts";
 import { finalReport } from "./report.ts";
 import { CANOPY_TOOL_NAMES, DEFAULT_MAX_CANDIDATES } from "./tools.ts";
-import { formatUsage } from "./usage.ts";
+import { formatModelCosts, formatUsage, type ModelCost } from "./usage.ts";
 
 const USAGE = `Usage: pnpm shop "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>] [--record <dir> | --replay <dir>]
 
@@ -155,7 +155,11 @@ async function main(): Promise<number> {
   }
 
   const lastStep = result.steps.at(-1);
-  const costUsd = lastStep?.providerMetadata?.["claude-code"]?.costUsd;
+  const claudeCodeMetadata = lastStep?.providerMetadata?.["claude-code"];
+  const costUsd = claudeCodeMetadata?.costUsd;
+  const modelUsage = claudeCodeMetadata?.modelUsage as
+    | Record<string, ModelCost>
+    | undefined;
   console.log(finalReport(lastStep?.content ?? []));
   console.error(
     `\nCanopy requests: ${canopy.requestsUsed} of ${options.budget}${replaying ? " (replayed, none sent)" : ""}.\n` +
@@ -164,6 +168,7 @@ async function main(): Promise<number> {
         typeof costUsd === "number" ? costUsd : undefined,
       ),
   );
+  for (const line of formatModelCosts(modelUsage ?? {})) console.error(line);
 
   if (result.finishReason !== "stop") {
     console.error(

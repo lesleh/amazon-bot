@@ -17,3 +17,22 @@ export function formatUsage(
     ? tokens
     : `${tokens} Model cost: $${costUsd.toFixed(3)}.`;
 }
+
+export interface ModelCost {
+  costUSD: number;
+  inputTokens: number;
+  outputTokens: number;
+  cacheReadInputTokens: number;
+  cacheCreationInputTokens: number;
+  webSearchRequests: number;
+}
+
+// Claude Code reports every model call, including the ones its web search makes.
+export function formatModelCosts(models: Record<string, ModelCost>): string[] {
+  return Object.entries(models).map(
+    ([model, m]) =>
+      `  ${model}: $${m.costUSD.toFixed(3)} (${count(m.inputTokens)} uncached in, ` +
+      `${count(m.cacheReadInputTokens)} cache reads, ${count(m.cacheCreationInputTokens)} cache writes, ` +
+      `${count(m.outputTokens)} out, ${m.webSearchRequests} web searches)`,
+  );
+}
