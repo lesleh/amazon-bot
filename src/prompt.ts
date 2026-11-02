@@ -2,8 +2,13 @@ import { readdir, readFile } from "node:fs/promises";
 
 const PROMPTS_DIR = new URL("../prompts/", import.meta.url);
 
+export interface PromptValues {
+  budget: number;
+  candidates: number;
+}
+
 export async function loadInstructions(
-  budget: number,
+  { budget, candidates }: PromptValues,
   dir: URL = PROMPTS_DIR,
 ): Promise<string> {
   const base = await readFile(new URL("instructions.md", dir), "utf8");
@@ -16,7 +21,8 @@ export async function loadInstructions(
     files.map((file) => readFile(new URL(file, categoriesDir), "utf8")),
   );
 
-  return [base.replaceAll("{{budget}}", String(budget)), ...categories]
-    .map((part) => part.trim())
-    .join("\n\n");
+  const filled = base
+    .replaceAll("{{budget}}", String(budget))
+    .replaceAll("{{candidates}}", String(candidates));
+  return [filled, ...categories].map((part) => part.trim()).join("\n\n");
 }

@@ -11,6 +11,7 @@ import { createCanopyClient } from "./canopy.ts";
 import { loadInstructions } from "./prompt.ts";
 import { recordingFetch, replayFetch } from "./recording.ts";
 import { finalReport } from "./report.ts";
+import { DEFAULT_MAX_CANDIDATES } from "./tools.ts";
 
 const USAGE = `Usage: pnpm shop "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>] [--record <dir> | --replay <dir>]
 
@@ -119,7 +120,10 @@ async function main(): Promise<number> {
   const abort = new AbortController();
   const agent = createShopperAgent({
     canopy,
-    instructions: await loadInstructions(options.budget),
+    instructions: await loadInstructions({
+      budget: options.budget,
+      candidates: DEFAULT_MAX_CANDIDATES,
+    }),
     provider: options.provider,
     modelId: options.model,
     onFatalError: (error) => abort.abort(error),

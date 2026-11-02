@@ -7,7 +7,7 @@ const options = { toolCallId: "1", messages: [], context: {} };
 // Answers each Canopy path with its own body, so multi-request tools can be tested.
 function toolsWith(
   bodies: Record<string, unknown>,
-  { budget = 5, status = 200, onFatalError = vi.fn() } = {},
+  { budget = 20, status = 200, onFatalError = vi.fn(), maxCandidates = 2 } = {},
 ) {
   const fetch = vi.fn(async (url: URL | RequestInfo) => {
     const path = new URL(String(url)).pathname.replace("/api/amazon", "");
@@ -15,7 +15,7 @@ function toolsWith(
   });
   const tools = createCanopyTools(
     createCanopyClient({ apiKey: "k", budget, fetch }),
-    { onFatalError },
+    { onFatalError, maxCandidates },
   );
   return { tools, fetch };
 }
@@ -147,5 +147,99 @@ describe("createCanopyTools", () => {
       error: "B000TEST01 is not available with Prime. Skip it.",
     });
     expect(fetch).toHaveBeenCalledOnce();
+  });
+
+  describe("candidate cap", () => {
+    const primeBodies = {
+      "/product/offers": offersBody(amazonOffer),
+      "/product": productBody,
+      "/product/top-reviews": { data: { amazonProduct: { topReviews: [] } } },
+    };
+    const call = (
+      tools: ReturnType<typeof toolsWith>["tools"],
+      name: "get_product" | "get_top_reviews",
+      asin: string,
+    ) => tools[name].execute?.({ asin }, options);
+
+    it("refuses a product beyond the cap without sending a request", async () => {
+      const { tools, fetch } = toolsWith(primeBodies);
+      await call(tools, "get_product", "A");
+      await call(tools, "get_product", "B");
+      fetch.mockClear();
+
+      const output = await call(tools, "get_product", "C");
+
+      expect(output).toEqual({
+        error:
+          "You already hold 2 candidates. Call drop_candidate first if one fails a check.",
+      });
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("holds slots for parallel checks", async () => {
+      const { tools, fetch } = toolsWith(primeBodies);
+
+      const outputs = await Promise.all(
+        ["A", "B", "C", "D"].map((asin) => call(tools, "get_product", asin)),
+      );
+
+      expect(outputs.filter((o) => o && "error" in o)).toHaveLength(2);
+      expect(fetch).toHaveBeenCalledTimes(4);
+    });
+
+    it("frees the slot of a product without Prime", async () => {
+      const { tools } = toolsWith({
+        ...primeBodies,
+        "/product/offers": offersBody({ ...amazonOffer, isPrime: false }),
+      });
+      await call(tools, "get_product", "A");
+      await call(tools, "get_product", "B");
+
+      const output = await call(tools, "get_product", "C");
+
+      expect(output).toEqual({
+        error: "C is not available with Prime. Skip it.",
+      });
+    });
+
+    it("frees a slot when a candidate is dropped", async () => {
+      const { tools } = toolsWith(primeBodies);
+      await call(tools, "get_product", "A");
+      await call(tools, "get_product", "B");
+
+      const dropped = await tools.drop_candidate.execute?.(
+        { asin: "A", reason: "bag too big" },
+        options,
+      );
+      const output = await call(tools, "get_product", "C");
+
+      expect(dropped).toEqual({ dropped: "A", freeSlots: 1 });
+      expect(output).toMatchObject({ asin: "B000TEST01" });
+    });
+
+    it("refuses to check the same product twice", async () => {
+      const { tools, fetch } = toolsWith(primeBodies);
+      await call(tools, "get_product", "A");
+      fetch.mockClear();
+
+      const output = await call(tools, "get_product", "A");
+
+      expect(output).toEqual({
+        error: "You already have A. Use the details you got.",
+      });
+      expect(fetch).not.toHaveBeenCalled();
+    });
+
+    it("gives reviews only for candidates", async () => {
+      const { tools, fetch } = toolsWith(primeBodies);
+      await call(tools, "get_product", "A");
+      fetch.mockClear();
+
+      expect(await call(tools, "get_top_reviews", "A")).toEqual([]);
+      expect(await call(tools, "get_top_reviews", "Z")).toEqual({
+        error: "Z is not one of your candidates. Call get_product first.",
+      });
+      expect(fetch).toHaveBeenCalledOnce();
+    });
   });
 });

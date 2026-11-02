@@ -6,15 +6,26 @@ const asin = z
   .string()
   .describe("The Amazon product ID, for example B0CX1Y2Z3A");
 
+export const DEFAULT_MAX_CANDIDATES = 4;
+
 export interface CanopyToolsOptions {
+  // How many products may pass get_product at once; each costs about 3 requests.
+  maxCandidates?: number;
   // Called when Canopy rejects the API key, which no amount of retrying fixes.
   onFatalError?: (error: CanopyError) => void;
 }
 
 export function createCanopyTools(
   canopy: CanopyClient,
-  { onFatalError }: CanopyToolsOptions = {},
+  {
+    maxCandidates = DEFAULT_MAX_CANDIDATES,
+    onFatalError,
+  }: CanopyToolsOptions = {},
 ) {
+  const candidates = new Set<string>();
+  // Products being checked hold a slot too, so parallel calls cannot overshoot the cap.
+  const checking = new Set<string>();
+
   // Errors go back to the model as data so it can adapt, for example by stopping early.
   async function safely<T>(
     run: () => Promise<T>,
@@ -53,36 +64,74 @@ export function createCanopyTools(
     }),
 
     get_product: tool({
-      description:
-        "Check that a product is available with Prime, then get its details: brand, buy box price and seller, rating breakdown, feature bullets and specifications. Returns an error for a product without Prime. Costs one request for a product without Prime, two otherwise.",
+      description: `Check that a product is available with Prime, then get its details: brand, buy box price and seller, rating breakdown, feature bullets and specifications. A product that passes becomes a candidate. You can hold ${maxCandidates} candidates at once. Returns an error for a product without Prime, a product you already have, or when you hold ${maxCandidates} candidates. Costs one request for a product without Prime, two otherwise.`,
       inputSchema: z.object({ asin }),
       execute: ({ asin }) =>
         safely(async () => {
-          // Only the offers report Prime reliably; product and search results always say false.
-          const buyBox = (await canopy.offers(asin)).find(
-            (offer) => offer.buyboxWinner === true,
-          );
-          if (buyBox?.isPrime !== true) {
-            throw new Error(`${asin} is not available with Prime. Skip it.`);
+          if (candidates.has(asin) || checking.has(asin)) {
+            throw new Error(
+              `You already have ${asin}. Use the details you got.`,
+            );
           }
-          const { seller: _listingSeller, ...product } =
-            await canopy.product(asin);
-          return {
-            ...product,
-            price: buyBox.price ?? product.price,
-            buyBox: {
-              seller: buyBox.seller,
-              fulfilledByAmazon: buyBox.fulfilledByAmazon,
-            },
-          };
+          if (candidates.size + checking.size >= maxCandidates) {
+            throw new Error(
+              `You already hold ${maxCandidates} candidates. Call drop_candidate first if one fails a check.`,
+            );
+          }
+          checking.add(asin);
+          try {
+            // Only the offers report Prime reliably; product and search results always say false.
+            const buyBox = (await canopy.offers(asin)).find(
+              (offer) => offer.buyboxWinner === true,
+            );
+            if (buyBox?.isPrime !== true) {
+              throw new Error(`${asin} is not available with Prime. Skip it.`);
+            }
+            const { seller: _listingSeller, ...product } =
+              await canopy.product(asin);
+            candidates.add(asin);
+            return {
+              ...product,
+              price: buyBox.price ?? product.price,
+              buyBox: {
+                seller: buyBox.seller,
+                fulfilledByAmazon: buyBox.fulfilledByAmazon,
+              },
+            };
+          } finally {
+            checking.delete(asin);
+          }
         }),
+    }),
+
+    drop_candidate: tool({
+      description:
+        "Give up a candidate that failed a check, so you can check another product with get_product. Costs nothing.",
+      inputSchema: z.object({
+        asin,
+        reason: z.string().describe("The check it failed, in a few words"),
+      }),
+      execute: async ({ asin }) => {
+        if (!candidates.delete(asin)) {
+          return { error: `${asin} is not one of your candidates.` };
+        }
+        return { dropped: asin, freeSlots: maxCandidates - candidates.size };
+      },
     }),
 
     get_top_reviews: tool({
       description:
-        "Get a product's top reviews (about 10): text, rating, verified purchase flag, reviewer and photo count. Costs one request.",
+        "Get a candidate's top reviews (about 10): text, rating, verified purchase flag, reviewer and photo count. Works only for products that passed get_product. Costs one request.",
       inputSchema: z.object({ asin }),
-      execute: ({ asin }) => safely(() => canopy.topReviews(asin)),
+      execute: ({ asin }) =>
+        safely(async () => {
+          if (!candidates.has(asin)) {
+            throw new Error(
+              `${asin} is not one of your candidates. Call get_product first.`,
+            );
+          }
+          return canopy.topReviews(asin);
+        }),
     }),
 
     get_seller: tool({
