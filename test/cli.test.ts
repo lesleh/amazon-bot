@@ -7,7 +7,7 @@ describe("parseCliArgs", () => {
       request: "cordless drill",
       budget: 15,
       provider: "claude-code",
-      model: "haiku",
+      model: "claude-haiku-5-5",
     });
   });
 

@@ -24,7 +24,7 @@ Options:
 
 - `--budget <n>`: the maximum number of Canopy requests for one run (default 15). The free Canopy plan allows 100 a month.
 - `--provider <name>`: `claude-code` (default) uses your Claude Code sign-in. `anthropic` uses the Anthropic API and needs `ANTHROPIC_API_KEY`.
-- `--model <id>`: the Claude model to use (default Haiku: `haiku` for Claude Code, `claude-haiku-5-5` for the Anthropic API)
+- `--model <id>`: the Claude model to use (default `claude-haiku-5-5`). Use full model IDs: through Claude Code, aliases such as `haiku` can resolve to an older model.
 
 ## Recording and replay
 

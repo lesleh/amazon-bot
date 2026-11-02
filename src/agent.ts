@@ -12,7 +12,7 @@ export type ProviderName = (typeof PROVIDERS)[number];
 
 export const DEFAULT_PROVIDER: ProviderName = "claude-code";
 export const DEFAULT_MODELS: Record<ProviderName, string> = {
-  "claude-code": "haiku",
+  "claude-code": "claude-haiku-5-5",
   anthropic: "claude-haiku-5-5",
 };
 
