@@ -60,7 +60,7 @@ Write the report in Markdown, for a terminal. Use sentence case and no emoji.
 
 Start with the recommendation heading. Write nothing before it. Give the recommendation in one or two sentences: which product to buy and why. Include its Amazon link (https://www.amazon.co.uk/dp/ followed by the ASIN).
 
-Then give a table of the candidates you kept, ranked, with these columns: rank, product, price, price per unit, seller, rating (count), verdict. The table must also have every report column of the matching category section. Give only values that a source states. Write "not found" when no source gives a value, and never estimate one.
+Then give a table of the candidates you kept, ranked, with these columns: rank, product, price, price per unit, seller, rating (count), verdict. The table must also have every report column of the matching category section. Each of these values must name its source in brackets, for example "35% (Ocado)" or "chicken (listing)". Write "not found" when no source states the value. Never estimate one or work it out from a different figure.
 
 Then, for each candidate, give a short list of its red flags with the evidence for each. Give the dropped candidates last, each with the red flag that removed it.
 
