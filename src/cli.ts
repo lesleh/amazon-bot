@@ -9,6 +9,7 @@ import {
 } from "./agent.ts";
 import { createCanopyClient } from "./canopy.ts";
 import { loadInstructions } from "./prompt.ts";
+import { finalReport } from "./report.ts";
 
 const USAGE = `Usage: npm run shop -- "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>]
 
@@ -119,7 +120,7 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  console.log(result.text);
+  console.log(finalReport(result.steps.at(-1)?.content ?? []));
   console.error(
     `\nCanopy requests: ${canopy.requestsUsed} of ${options.budget}. ` +
       `Tokens: ${result.totalUsage.inputTokens ?? "?"} in, ${result.totalUsage.outputTokens ?? "?"} out.`,
