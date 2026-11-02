@@ -21,4 +21,13 @@ describe("finalReport", () => {
   it("returns all text when there were no tool calls", () => {
     expect(finalReport([{ type: "text", text: "Report" }])).toBe("Report");
   });
+
+  it("drops narration before the first heading", () => {
+    expect(
+      finalReport([
+        { type: "text", text: "Now I have enough. Let me write it up.\n\n" },
+        { type: "text", text: "## Recommendation\nBuy it." },
+      ]),
+    ).toBe("## Recommendation\nBuy it.");
+  });
 });

@@ -5,9 +5,11 @@ export function finalReport(content: readonly Part[]): string {
   const lastTool = content.findLastIndex(
     (part) => part.type === "tool-call" || part.type === "tool-result",
   );
-  return content
+  const text = content
     .slice(lastTool + 1)
     .flatMap((part) => (part.type === "text" && part.text ? [part.text] : []))
-    .join("")
-    .trim();
+    .join("");
+  // Drop narration such as "Now I have enough information" before the first heading.
+  const firstHeading = text.search(/^#{1,6} /m);
+  return (firstHeading > 0 ? text.slice(firstHeading) : text).trim();
 }
