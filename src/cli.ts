@@ -12,6 +12,7 @@ import { loadInstructions } from "./prompt.ts";
 import { recordingFetch, replayFetch } from "./recording.ts";
 import { finalReport } from "./report.ts";
 import { CANOPY_TOOL_NAMES, DEFAULT_MAX_CANDIDATES } from "./tools.ts";
+import { formatUsage } from "./usage.ts";
 
 const USAGE = `Usage: pnpm shop "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>] [--record <dir> | --replay <dir>]
 
@@ -153,10 +154,15 @@ async function main(): Promise<number> {
     return 1;
   }
 
-  console.log(finalReport(result.steps.at(-1)?.content ?? []));
+  const lastStep = result.steps.at(-1);
+  const costUsd = lastStep?.providerMetadata?.["claude-code"]?.costUsd;
+  console.log(finalReport(lastStep?.content ?? []));
   console.error(
-    `\nCanopy requests: ${canopy.requestsUsed} of ${options.budget}${replaying ? " (replayed, none sent)" : ""}. ` +
-      `Tokens: ${result.totalUsage.inputTokens ?? "?"} in, ${result.totalUsage.outputTokens ?? "?"} out.`,
+    `\nCanopy requests: ${canopy.requestsUsed} of ${options.budget}${replaying ? " (replayed, none sent)" : ""}.\n` +
+      formatUsage(
+        result.totalUsage,
+        typeof costUsd === "number" ? costUsd : undefined,
+      ),
   );
 
   if (result.finishReason !== "stop") {
