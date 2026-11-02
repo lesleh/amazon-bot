@@ -58,15 +58,34 @@ const product = z.object({
   coupon,
   rating: z.number().nullish(),
   ratingsTotal: z.number().nullish(),
+  // Canopy derives these counts from Amazon's rounded percentages, so percentages are the honest form.
   ratingsBreakdown: z
     .object({
-      oneStarRatingsCount: z.number().nullish(),
-      twoStarRatingsCount: z.number().nullish(),
-      threeStarRatingsCount: z.number().nullish(),
-      fourStarRatingsCount: z.number().nullish(),
       fiveStarRatingsCount: z.number().nullish(),
+      fourStarRatingsCount: z.number().nullish(),
+      threeStarRatingsCount: z.number().nullish(),
+      twoStarRatingsCount: z.number().nullish(),
+      oneStarRatingsCount: z.number().nullish(),
     })
-    .nullish(),
+    .nullish()
+    .transform((counts) => {
+      if (!counts) return null;
+      const stars = [
+        ["fiveStar", counts.fiveStarRatingsCount ?? 0],
+        ["fourStar", counts.fourStarRatingsCount ?? 0],
+        ["threeStar", counts.threeStarRatingsCount ?? 0],
+        ["twoStar", counts.twoStarRatingsCount ?? 0],
+        ["oneStar", counts.oneStarRatingsCount ?? 0],
+      ] as const;
+      const total = stars.reduce((sum, [, count]) => sum + count, 0);
+      if (total === 0) return null;
+      return Object.fromEntries(
+        stars.map(([name, count]) => [
+          `${name}Percent`,
+          Math.round((count / total) * 100),
+        ]),
+      );
+    }),
   itemHighlights: z.string().nullish(),
   featureBullets: z.array(z.string()).nullish(),
   technicalSpecifications: z

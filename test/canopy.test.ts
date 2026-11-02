@@ -24,6 +24,13 @@ const productBody = {
       coupon: null,
       rating: 4.6,
       ratingsTotal: 1200,
+      ratingsBreakdown: {
+        oneStarRatingsCount: 93,
+        twoStarRatingsCount: 0,
+        threeStarRatingsCount: 372,
+        fourStarRatingsCount: 1210,
+        fiveStarRatingsCount: 7630,
+      },
       categories: [
         {
           id: "1",
@@ -65,6 +72,13 @@ describe("createCanopyClient", () => {
     expect(product.price).toBe("£12.50");
     expect(product.categories).toBe("Pet Supplies > Cats");
     expect(product.seller).toEqual({ sellerId: "A1", name: "Amazon" });
+    expect(product.ratingsBreakdown).toEqual({
+      fiveStarPercent: 82,
+      fourStarPercent: 13,
+      threeStarPercent: 4,
+      twoStarPercent: 0,
+      oneStarPercent: 1,
+    });
   });
 
   it("replaces review photos with a count", async () => {
