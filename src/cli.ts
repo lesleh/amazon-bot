@@ -1,19 +1,31 @@
 import { parseArgs } from "node:util";
-import { createShopperAgent, DEFAULT_MODEL } from "./agent.ts";
+import type { Warning } from "ai";
+import {
+  createShopperAgent,
+  DEFAULT_MODELS,
+  DEFAULT_PROVIDER,
+  PROVIDERS,
+  type ProviderName,
+} from "./agent.ts";
 import { createCanopyClient } from "./canopy.ts";
 import { loadInstructions } from "./prompt.ts";
 
-const USAGE = `Usage: npm run shop -- "<what you want>" [--budget 15] [--model ${DEFAULT_MODEL}]
+const USAGE = `Usage: npm run shop -- "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>]
 
 Example: npm run shop -- "a cordless drill for light DIY, under £80"`;
 
 export interface CliOptions {
   request: string;
   budget: number;
+  provider: ProviderName;
   model: string;
 }
 
 export class UsageError extends Error {}
+
+function isProvider(value: string): value is ProviderName {
+  return (PROVIDERS as readonly string[]).includes(value);
+}
 
 export function parseCliArgs(argv: string[]): CliOptions {
   const { values, positionals } = parseArgs({
@@ -21,7 +33,8 @@ export function parseCliArgs(argv: string[]): CliOptions {
     allowPositionals: true,
     options: {
       budget: { type: "string", default: "15" },
-      model: { type: "string", default: DEFAULT_MODEL },
+      provider: { type: "string", default: DEFAULT_PROVIDER },
+      model: { type: "string" },
     },
   });
 
@@ -33,7 +46,28 @@ export function parseCliArgs(argv: string[]): CliOptions {
     throw new UsageError("--budget must be a whole number of 1 or more.");
   }
 
-  return { request, budget, model: values.model };
+  const { provider } = values;
+  if (!isProvider(provider)) {
+    throw new UsageError(`--provider must be one of: ${PROVIDERS.join(", ")}.`);
+  }
+
+  return {
+    request,
+    budget,
+    provider,
+    model: values.model ?? DEFAULT_MODELS[provider],
+  };
+}
+
+// The Claude Code provider warns above 20 turns, but a full run needs more.
+function logWarnings({ warnings }: { warnings: Warning[] }): void {
+  for (const warning of warnings) {
+    const text =
+      "message" in warning
+        ? warning.message
+        : `${warning.type}: ${warning.feature}${warning.details ? ` (${warning.details})` : ""}`;
+    if (!text.startsWith("High maxTurns")) console.error(`Warning: ${text}`);
+  }
 }
 
 function describeCall(toolName: string, input: unknown): string {
@@ -60,6 +94,7 @@ async function main(): Promise<number> {
   const agent = createShopperAgent({
     canopy,
     instructions: await loadInstructions(options.budget),
+    provider: options.provider,
     modelId: options.model,
   });
 
@@ -88,5 +123,6 @@ async function main(): Promise<number> {
 }
 
 if (import.meta.main) {
+  globalThis.AI_SDK_LOG_WARNINGS = logWarnings;
   process.exitCode = await main();
 }

@@ -6,11 +6,11 @@ It uses the Vercel AI SDK with Claude, gets Amazon data from [Canopy API](https:
 
 ## Setup
 
-You need Node 24 or later.
+You need Node 24 or later. By default the agent runs through Claude Code, so you also need Claude Code installed and signed in.
 
 1. Run `npm install`.
 2. Copy `.env.example` to `.env`.
-3. Add your Anthropic and Canopy API keys to `.env`.
+3. Add your Canopy API key to `.env`. Add an Anthropic API key only if you use `--provider anthropic`.
 
 ## Usage
 
@@ -23,7 +23,8 @@ The report goes to standard output. Progress and request counts go to standard e
 Options:
 
 - `--budget <n>`: the maximum number of Canopy requests for one run (default 15). The free Canopy plan allows 100 a month.
-- `--model <id>`: the Claude model to use (default `claude-haiku-5-5`)
+- `--provider <name>`: `claude-code` (default) uses your Claude Code sign-in. `anthropic` uses the Anthropic API and needs `ANTHROPIC_API_KEY`.
+- `--model <id>`: the Claude model to use (default Haiku: `haiku` for Claude Code, `claude-haiku-5-5` for the Anthropic API)
 
 ## Category checks
 

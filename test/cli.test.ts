@@ -1,32 +1,34 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_MODEL } from "../src/agent.ts";
 import { parseCliArgs, UsageError } from "../src/cli.ts";
 
 describe("parseCliArgs", () => {
   it("joins the request and applies defaults", () => {
-    expect(parseCliArgs(["dry", "cat food"])).toEqual({
-      request: "dry cat food",
+    expect(parseCliArgs(["cordless", "drill"])).toEqual({
+      request: "cordless drill",
       budget: 15,
-      model: DEFAULT_MODEL,
+      provider: "claude-code",
+      model: "haiku",
+    });
+  });
+
+  it("uses the default model for the chosen provider", () => {
+    expect(parseCliArgs(["drill", "--provider", "anthropic"])).toMatchObject({
+      provider: "anthropic",
+      model: "claude-haiku-5-5",
     });
   });
 
   it("reads the budget and model flags", () => {
     expect(
-      parseCliArgs([
-        "cat food",
-        "--budget",
-        "8",
-        "--model",
-        "claude-sonnet-5-5",
-      ]),
-    ).toEqual({ request: "cat food", budget: 8, model: "claude-sonnet-5-5" });
+      parseCliArgs(["drill", "--budget", "8", "--model", "sonnet"]),
+    ).toMatchObject({ request: "drill", budget: 8, model: "sonnet" });
   });
 
   it.each([
     [[]],
-    [["cat food", "--budget", "0"]],
-    [["cat food", "--budget", "lots"]],
+    [["drill", "--budget", "0"]],
+    [["drill", "--budget", "lots"]],
+    [["drill", "--provider", "openai"]],
   ])("rejects bad input %j", (argv) => {
     expect(() => parseCliArgs(argv)).toThrow(UsageError);
   });
