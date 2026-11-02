@@ -9,9 +9,10 @@ import {
 } from "./agent.ts";
 import { createCanopyClient } from "./canopy.ts";
 import { loadInstructions } from "./prompt.ts";
+import { recordingFetch, replayFetch } from "./recording.ts";
 import { finalReport } from "./report.ts";
 
-const USAGE = `Usage: pnpm shop "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>]
+const USAGE = `Usage: pnpm shop "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>] [--record <dir> | --replay <dir>]
 
 Example: pnpm shop "a cordless drill for light DIY, under £80"`;
 
@@ -20,6 +21,7 @@ export interface CliOptions {
   budget: number;
   provider: ProviderName;
   model: string;
+  recording?: { mode: "record" | "replay"; dir: string };
 }
 
 export class UsageError extends Error {}
@@ -36,6 +38,8 @@ export function parseCliArgs(argv: string[]): CliOptions {
       budget: { type: "string", default: "15" },
       provider: { type: "string", default: DEFAULT_PROVIDER },
       model: { type: "string" },
+      record: { type: "string" },
+      replay: { type: "string" },
     },
   });
 
@@ -52,11 +56,21 @@ export function parseCliArgs(argv: string[]): CliOptions {
     throw new UsageError(`--provider must be one of: ${PROVIDERS.join(", ")}.`);
   }
 
+  if (values.record && values.replay) {
+    throw new UsageError("Use --record or --replay, not both.");
+  }
+  const recording = values.record
+    ? { mode: "record" as const, dir: values.record }
+    : values.replay
+      ? { mode: "replay" as const, dir: values.replay }
+      : undefined;
+
   return {
     request,
     budget,
     provider,
     model: values.model ?? DEFAULT_MODELS[provider],
+    ...(recording && { recording }),
   };
 }
 
@@ -85,13 +99,23 @@ async function main(): Promise<number> {
     return 2;
   }
 
-  const apiKey = process.env.CANOPY_API_KEY;
+  const { recording } = options;
+  const replaying = recording?.mode === "replay";
+  const apiKey = replaying ? "replay" : process.env.CANOPY_API_KEY;
   if (!apiKey) {
     console.error("CANOPY_API_KEY is not set. Add it to .env.");
     return 2;
   }
 
-  const canopy = createCanopyClient({ apiKey, budget: options.budget });
+  const canopy = createCanopyClient({
+    apiKey,
+    budget: options.budget,
+    ...(recording && {
+      fetch: replaying
+        ? replayFetch(recording.dir)
+        : recordingFetch(recording.dir),
+    }),
+  });
   const abort = new AbortController();
   const agent = createShopperAgent({
     canopy,
@@ -122,7 +146,7 @@ async function main(): Promise<number> {
 
   console.log(finalReport(result.steps.at(-1)?.content ?? []));
   console.error(
-    `\nCanopy requests: ${canopy.requestsUsed} of ${options.budget}. ` +
+    `\nCanopy requests: ${canopy.requestsUsed} of ${options.budget}${replaying ? " (replayed, none sent)" : ""}. ` +
       `Tokens: ${result.totalUsage.inputTokens ?? "?"} in, ${result.totalUsage.outputTokens ?? "?"} out.`,
   );
 

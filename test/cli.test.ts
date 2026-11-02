@@ -25,6 +25,16 @@ describe("parseCliArgs", () => {
   });
 
   it.each([
+    ["--record", "record"],
+    ["--replay", "replay"],
+  ])("reads %s with its directory", (flag, mode) => {
+    expect(parseCliArgs(["drill", flag, "recordings/drill"])).toMatchObject({
+      recording: { mode, dir: "recordings/drill" },
+    });
+  });
+
+  it.each([
+    [["drill", "--record", "a", "--replay", "b"]],
     [[]],
     [["drill", "--budget", "0"]],
     [["drill", "--budget", "lots"]],

@@ -26,6 +26,17 @@ Options:
 - `--provider <name>`: `claude-code` (default) uses your Claude Code sign-in. `anthropic` uses the Anthropic API and needs `ANTHROPIC_API_KEY`.
 - `--model <id>`: the Claude model to use (default Haiku: `haiku` for Claude Code, `claude-haiku-5-5` for the Anthropic API)
 
+## Recording and replay
+
+Each Canopy request costs money, so you can record a run once and replay it while you change the prompt:
+
+```sh
+pnpm shop "dry cat food for an adult cat" --record recordings/cat-food
+pnpm shop "dry cat food for an adult cat" --replay recordings/cat-food
+```
+
+A replay sends no Canopy requests. If the agent asks for something the recording does not have, it gets an error and moves on. The `recordings/` folder is not committed.
+
 ## Category checks
 
 The agent's instructions are in `prompts/instructions.md`. To add checks for a type of product, add a Markdown file to `prompts/categories/`. The agent reads every file in that folder and applies the one that matches the product.
