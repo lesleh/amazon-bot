@@ -5,7 +5,7 @@ import {
 import { stepCountIs, ToolLoopAgent } from "ai";
 import { claudeCode, createAiSdkMcpServer } from "ai-sdk-provider-claude-code";
 import type { CanopyClient } from "./canopy.ts";
-import { createCanopyTools } from "./tools.ts";
+import { type CanopyToolsOptions, createCanopyTools } from "./tools.ts";
 
 export const PROVIDERS = ["claude-code", "anthropic"] as const;
 export type ProviderName = (typeof PROVIDERS)[number];
@@ -18,7 +18,7 @@ export const DEFAULT_MODELS: Record<ProviderName, string> = {
 
 const MAX_STEPS = 40;
 
-export interface ShopperAgentOptions {
+export interface ShopperAgentOptions extends CanopyToolsOptions {
   canopy: CanopyClient;
   instructions: string;
   provider?: ProviderName;
@@ -30,8 +30,9 @@ export function createShopperAgent({
   instructions,
   provider = DEFAULT_PROVIDER,
   modelId = DEFAULT_MODELS[provider],
+  onFatalError,
 }: ShopperAgentOptions) {
-  const canopyTools = createCanopyTools(canopy);
+  const canopyTools = createCanopyTools(canopy, { onFatalError });
 
   if (provider === "claude-code") {
     // Claude Code runs its own tool loop, so the Canopy tools go in as an MCP server.

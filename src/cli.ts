@@ -91,21 +91,33 @@ async function main(): Promise<number> {
   }
 
   const canopy = createCanopyClient({ apiKey, budget: options.budget });
+  const abort = new AbortController();
   const agent = createShopperAgent({
     canopy,
     instructions: await loadInstructions(options.budget),
     provider: options.provider,
     modelId: options.model,
+    onFatalError: (error) => abort.abort(error),
   });
 
-  const result = await agent.generate({
-    prompt: options.request,
-    onStepEnd: (step) => {
-      for (const call of step.toolCalls) {
-        console.error(`  ${describeCall(call.toolName, call.input)}`);
-      }
-    },
-  });
+  let result: Awaited<ReturnType<typeof agent.generate>>;
+  try {
+    result = await agent.generate({
+      prompt: options.request,
+      abortSignal: abort.signal,
+      onStepEnd: (step) => {
+        for (const call of step.toolCalls) {
+          console.error(`  ${describeCall(call.toolName, call.input)}`);
+        }
+      },
+    });
+  } catch (error) {
+    if (!abort.signal.aborted) throw error;
+    console.error(
+      `Stopped: ${(abort.signal.reason as Error).message}\nCheck CANOPY_API_KEY in .env.`,
+    );
+    return 1;
+  }
 
   console.log(result.text);
   console.error(

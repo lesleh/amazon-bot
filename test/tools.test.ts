@@ -4,9 +4,16 @@ import { createCanopyTools } from "../src/tools.ts";
 
 const options = { toolCallId: "1", messages: [], context: {} };
 
-function toolsReturning(body: unknown, budget = 5) {
-  const fetch = vi.fn(async () => new Response(JSON.stringify(body)));
-  return createCanopyTools(createCanopyClient({ apiKey: "k", budget, fetch }));
+function toolsReturning(
+  body: unknown,
+  { budget = 5, status = 200, onFatalError = vi.fn() } = {},
+) {
+  const fetch = vi.fn(
+    async () => new Response(JSON.stringify(body), { status }),
+  );
+  return createCanopyTools(createCanopyClient({ apiKey: "k", budget, fetch }), {
+    onFatalError,
+  });
 }
 
 function product(isPrime: boolean | null) {
@@ -17,7 +24,7 @@ function product(isPrime: boolean | null) {
 
 describe("createCanopyTools", () => {
   it("returns budget errors to the model instead of throwing", async () => {
-    const tools = toolsReturning({}, 0);
+    const tools = toolsReturning({}, { budget: 0 });
 
     const output = await tools.get_product.execute?.(
       { asin: "B000TEST01" },
@@ -27,6 +34,31 @@ describe("createCanopyTools", () => {
     expect(output).toEqual({
       error: "The Canopy request budget of 0 is used up.",
     });
+  });
+
+  it.each([401, 403])(
+    "reports HTTP %i from Canopy as a fatal error",
+    async (status) => {
+      const onFatalError = vi.fn();
+      const tools = toolsReturning({}, { status, onFatalError });
+
+      const output = await tools.get_product.execute?.(
+        { asin: "B000TEST01" },
+        options,
+      );
+
+      expect(onFatalError).toHaveBeenCalledOnce();
+      expect(output).toHaveProperty("error");
+    },
+  );
+
+  it("does not treat other Canopy errors as fatal", async () => {
+    const onFatalError = vi.fn();
+    const tools = toolsReturning({}, { status: 500, onFatalError });
+
+    await tools.get_product.execute?.({ asin: "B000TEST01" }, options);
+
+    expect(onFatalError).not.toHaveBeenCalled();
   });
 
   it("drops search results without Prime", async () => {

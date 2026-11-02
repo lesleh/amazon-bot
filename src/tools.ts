@@ -1,23 +1,37 @@
 import { tool } from "ai";
 import { z } from "zod";
-import type { CanopyClient } from "./canopy.ts";
-
-// Errors go back to the model as data so it can adapt, for example by stopping early.
-async function safely<T>(
-  run: () => Promise<T>,
-): Promise<T | { error: string }> {
-  try {
-    return await run();
-  } catch (error) {
-    return { error: error instanceof Error ? error.message : String(error) };
-  }
-}
+import { type CanopyClient, CanopyError } from "./canopy.ts";
 
 const asin = z
   .string()
   .describe("The Amazon product ID, for example B0CX1Y2Z3A");
 
-export function createCanopyTools(canopy: CanopyClient) {
+export interface CanopyToolsOptions {
+  // Called when Canopy rejects the API key, which no amount of retrying fixes.
+  onFatalError?: (error: CanopyError) => void;
+}
+
+export function createCanopyTools(
+  canopy: CanopyClient,
+  { onFatalError }: CanopyToolsOptions = {},
+) {
+  // Errors go back to the model as data so it can adapt, for example by stopping early.
+  async function safely<T>(
+    run: () => Promise<T>,
+  ): Promise<T | { error: string }> {
+    try {
+      return await run();
+    } catch (error) {
+      if (
+        error instanceof CanopyError &&
+        (error.status === 401 || error.status === 403)
+      ) {
+        onFatalError?.(error);
+      }
+      return { error: error instanceof Error ? error.message : String(error) };
+    }
+  }
+
   return {
     search_amazon: tool({
       description:
