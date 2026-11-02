@@ -11,7 +11,7 @@ import { createCanopyClient } from "./canopy.ts";
 import { loadInstructions } from "./prompt.ts";
 import { recordingFetch, replayFetch } from "./recording.ts";
 import { finalReport } from "./report.ts";
-import { DEFAULT_MAX_CANDIDATES } from "./tools.ts";
+import { CANOPY_TOOL_NAMES, DEFAULT_MAX_CANDIDATES } from "./tools.ts";
 
 const USAGE = `Usage: pnpm shop "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>] [--record <dir> | --replay <dir>]
 
@@ -86,9 +86,11 @@ function logWarnings({ warnings }: { warnings: Warning[] }): void {
   }
 }
 
-function describeCall(toolName: string, input: unknown): string {
-  const fields = Object.values(input as Record<string, unknown>).join(", ");
-  return `${toolName}(${fields})`;
+function logCall(toolName: string, input: unknown): void {
+  const fields = Object.values(input as Record<string, unknown>)
+    .filter((value) => value !== undefined)
+    .join(", ");
+  console.error(`  ${toolName}(${fields})`);
 }
 
 async function main(): Promise<number> {
@@ -127,6 +129,7 @@ async function main(): Promise<number> {
     provider: options.provider,
     modelId: options.model,
     onFatalError: (error) => abort.abort(error),
+    onCall: logCall,
   });
 
   let result: Awaited<ReturnType<typeof agent.generate>>;
@@ -134,9 +137,11 @@ async function main(): Promise<number> {
     result = await agent.generate({
       prompt: options.request,
       abortSignal: abort.signal,
+      // Canopy tools log as they start; the rest, such as web search, log per step.
       onStepEnd: (step) => {
         for (const call of step.toolCalls) {
-          console.error(`  ${describeCall(call.toolName, call.input)}`);
+          const name = call.toolName.replace(/^mcp__canopy__/, "");
+          if (!CANOPY_TOOL_NAMES.has(name)) logCall(name, call.input);
         }
       },
     });

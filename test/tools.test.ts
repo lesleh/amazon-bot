@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from "vitest";
 import { createCanopyClient } from "../src/canopy.ts";
-import { createCanopyTools } from "../src/tools.ts";
+import { CANOPY_TOOL_NAMES, createCanopyTools } from "../src/tools.ts";
 
 const options = { toolCallId: "1", messages: [], context: {} };
 
@@ -44,6 +44,25 @@ const amazonOffer = {
 };
 
 describe("createCanopyTools", () => {
+  it("lists every tool in CANOPY_TOOL_NAMES", () => {
+    const { tools } = toolsWith({});
+
+    expect(new Set(Object.keys(tools))).toEqual(CANOPY_TOOL_NAMES);
+  });
+
+  it("reports each call as it starts", async () => {
+    const onCall = vi.fn();
+    const fetch = vi.fn(async () => new Response("{}"));
+    const tools = createCanopyTools(
+      createCanopyClient({ apiKey: "k", budget: 5, fetch }),
+      { onCall },
+    );
+
+    await tools.get_product.execute?.({ asin: "B000TEST01" }, options);
+
+    expect(onCall).toHaveBeenCalledWith("get_product", { asin: "B000TEST01" });
+  });
+
   it("returns budget errors to the model instead of throwing", async () => {
     const { tools } = toolsWith({}, { budget: 0 });
 

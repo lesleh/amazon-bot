@@ -8,11 +8,21 @@ const asin = z
 
 export const DEFAULT_MAX_CANDIDATES = 4;
 
+export const CANOPY_TOOL_NAMES: ReadonlySet<string> = new Set([
+  "search_amazon",
+  "get_product",
+  "drop_candidate",
+  "get_top_reviews",
+  "get_seller",
+]);
+
 export interface CanopyToolsOptions {
   // How many products may pass get_product at once; each costs about 3 requests.
   maxCandidates?: number;
   // Called when Canopy rejects the API key, which no amount of retrying fixes.
   onFatalError?: (error: CanopyError) => void;
+  // Called as each tool starts, for live progress.
+  onCall?: (toolName: string, input: Record<string, unknown>) => void;
 }
 
 export function createCanopyTools(
@@ -20,6 +30,7 @@ export function createCanopyTools(
   {
     maxCandidates = DEFAULT_MAX_CANDIDATES,
     onFatalError,
+    onCall,
   }: CanopyToolsOptions = {},
 ) {
   const candidates = new Set<string>();
@@ -55,6 +66,7 @@ export function createCanopyTools(
       }),
       execute: ({ query, page }) =>
         safely(async () => {
+          onCall?.("search_amazon", { query, page });
           // Sponsored slots repeat products that also appear further down.
           const seen = new Set<string>();
           return (await canopy.search(query, page)).filter(
@@ -68,6 +80,7 @@ export function createCanopyTools(
       inputSchema: z.object({ asin }),
       execute: ({ asin }) =>
         safely(async () => {
+          onCall?.("get_product", { asin });
           if (candidates.has(asin) || checking.has(asin)) {
             throw new Error(
               `You already have ${asin}. Use the details you got.`,
@@ -111,7 +124,8 @@ export function createCanopyTools(
         asin,
         reason: z.string().describe("The check it failed, in a few words"),
       }),
-      execute: async ({ asin }) => {
+      execute: async ({ asin, reason }) => {
+        onCall?.("drop_candidate", { asin, reason });
         if (!candidates.delete(asin)) {
           return { error: `${asin} is not one of your candidates.` };
         }
@@ -125,6 +139,7 @@ export function createCanopyTools(
       inputSchema: z.object({ asin }),
       execute: ({ asin }) =>
         safely(async () => {
+          onCall?.("get_top_reviews", { asin });
           if (!candidates.has(asin)) {
             throw new Error(
               `${asin} is not one of your candidates. Call get_product first.`,
@@ -140,7 +155,11 @@ export function createCanopyTools(
       inputSchema: z.object({
         sellerId: z.string().describe("The buy box seller ID from get_product"),
       }),
-      execute: ({ sellerId }) => safely(() => canopy.seller(sellerId)),
+      execute: ({ sellerId }) =>
+        safely(() => {
+          onCall?.("get_seller", { sellerId });
+          return canopy.seller(sellerId);
+        }),
     }),
   };
 }

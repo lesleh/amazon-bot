@@ -30,9 +30,9 @@ export function createShopperAgent({
   instructions,
   provider = DEFAULT_PROVIDER,
   modelId = DEFAULT_MODELS[provider],
-  onFatalError,
+  ...toolOptions
 }: ShopperAgentOptions) {
-  const canopyTools = createCanopyTools(canopy, { onFatalError });
+  const canopyTools = createCanopyTools(canopy, toolOptions);
 
   if (provider === "claude-code") {
     // Claude Code runs its own tool loop, so the Canopy tools go in as an MCP server.
