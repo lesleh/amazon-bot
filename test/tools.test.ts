@@ -82,6 +82,31 @@ describe("createCanopyTools", () => {
     expect(onFatalError).not.toHaveBeenCalled();
   });
 
+  it("removes repeated search results", async () => {
+    const result = (asin: string) => ({ asin, title: asin });
+    const { tools } = toolsWith({
+      "/search": {
+        data: {
+          amazonProductSearchResults: {
+            productResults: {
+              results: [result("A"), result("B"), result("A")],
+            },
+          },
+        },
+      },
+    });
+
+    const output = await tools.search_amazon.execute?.(
+      { query: "drill" },
+      options,
+    );
+
+    expect(output).toEqual([
+      expect.objectContaining({ asin: "A" }),
+      expect.objectContaining({ asin: "B" }),
+    ]);
+  });
+
   it("returns a Prime product with its buy box price and seller", async () => {
     const { tools } = toolsWith({
       "/product/offers": offersBody(

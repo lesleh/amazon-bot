@@ -42,7 +42,14 @@ export function createCanopyTools(
           .describe("A plain search query, as a shopper would type it"),
         page: z.number().int().min(1).optional(),
       }),
-      execute: ({ query, page }) => safely(() => canopy.search(query, page)),
+      execute: ({ query, page }) =>
+        safely(async () => {
+          // Sponsored slots repeat products that also appear further down.
+          const seen = new Set<string>();
+          return (await canopy.search(query, page)).filter(
+            (p) => !seen.has(p.asin) && seen.add(p.asin),
+          );
+        }),
     }),
 
     get_product: tool({
