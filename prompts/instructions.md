@@ -6,6 +6,8 @@ Amazon data comes from the `search_amazon`, `get_product`, `get_top_reviews` and
 
 The user cannot answer questions. Work from their message alone.
 
+Recommend only products you have checked with `get_product`. If the Amazon tools fail, say so in the report and recommend nothing. Web search alone is never enough for a recommendation.
+
 ## Steps
 
 1. Write the brief. Take the product, budget, must-haves and nice-to-haves from the user's message. Fill any gap with a sensible default and state it in the report. The brief is done when you have a price limit and a list of must-haves.
