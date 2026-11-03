@@ -33,19 +33,34 @@ export function recordingFetch(dir: string, inner: Fetch = fetch): Fetch {
 }
 
 // The model words its search differently from run to run, so a replay falls back to the
-// recording's only search. Product lookups must match exactly.
-async function onlySearch(dir: string): Promise<string | undefined> {
-  const searches = (await readdir(dir)).filter((file) =>
-    file.startsWith("search--"),
-  );
-  return searches.length === 1 ? searches[0] : undefined;
+// recorded search that shares the most words with it. Product lookups must match exactly.
+function searchWords(key: string): Set<string> {
+  const query = key.slice(key.indexOf("--") + 2, -".json".length);
+  const term = new URLSearchParams(query).get("searchTerm") ?? "";
+  return new Set(term.toLowerCase().split(/\s+/).filter(Boolean));
+}
+
+async function closestSearch(
+  dir: string,
+  key: string,
+): Promise<string | undefined> {
+  const wanted = searchWords(key);
+  let best: { file: string; shared: number } | undefined;
+  for (const file of (await readdir(dir)).sort()) {
+    if (!file.startsWith("search--")) continue;
+    const shared = [...searchWords(file)].filter((word) =>
+      wanted.has(word),
+    ).length;
+    if (shared > (best?.shared ?? 0)) best = { file, shared };
+  }
+  return best?.file;
 }
 
 export function replayFetch(dir: string): Fetch {
   return async (input) => {
     const key = recordingKey(urlOf(input));
     const fallback = key.startsWith("search--")
-      ? await onlySearch(dir)
+      ? await closestSearch(dir, key)
       : undefined;
     for (const file of [key, fallback]) {
       if (!file) continue;

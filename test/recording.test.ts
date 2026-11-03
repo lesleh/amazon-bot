@@ -46,7 +46,7 @@ describe("recording and replay", () => {
     );
   });
 
-  it("falls back to the only recorded search for a reworded query", async () => {
+  it("falls back to the recorded search with the most words in common", async () => {
     const dir = await mkdtemp(join(tmpdir(), "amazon-bot-"));
     const search = (term: string) =>
       new URL(
@@ -55,10 +55,30 @@ describe("recording and replay", () => {
     await recordingFetch(
       dir,
       async () => new Response('{"term":"a"}'),
-    )(search("cat+food"));
+    )(search("cat+food+adult"));
+    await recordingFetch(
+      dir,
+      async () => new Response('{"term":"b"}'),
+    )(search("dog+food"));
 
     const replayed = await replayFetch(dir)(search("dry+cat+food"));
 
     expect(await replayed.json()).toEqual({ term: "a" });
+  });
+
+  it("fails a replay for a search with no words in common", async () => {
+    const dir = await mkdtemp(join(tmpdir(), "amazon-bot-"));
+    const search = (term: string) =>
+      new URL(
+        `https://rest.canopyapi.co/api/amazon/search?domain=UK&searchTerm=${term}`,
+      );
+    await recordingFetch(
+      dir,
+      async () => new Response("{}"),
+    )(search("cat+food"));
+
+    await expect(replayFetch(dir)(search("eye+mask"))).rejects.toThrow(
+      "No recorded response",
+    );
   });
 });
