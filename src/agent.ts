@@ -6,11 +6,19 @@ import { stepCountIs, ToolLoopAgent } from "ai";
 import {
   claudeCode,
   createAiSdkMcpServer,
+  createCustomMcpServer,
   type Logger,
+  type MinimalCallToolResult,
 } from "ai-sdk-provider-claude-code";
+import { z } from "zod";
 import type { CanopyClient } from "./canopy.ts";
 import { findClaudeExecutable } from "./claude-path.ts";
-import { type CanopyToolsOptions, createCanopyTools } from "./tools.ts";
+import {
+  type CanopyToolsOptions,
+  createCanopyTools,
+  type ListingImagesOutput,
+  READ_LISTING_IMAGES_DESCRIPTION,
+} from "./tools.ts";
 import { MAX_WEB_SEARCHES, webSearchLimitHook } from "./web-search-limit.ts";
 
 export const PROVIDERS = ["claude-code", "anthropic"] as const;
@@ -37,6 +45,27 @@ const claudeCodeLogger: Logger = {
   error: (message) => console.error(message),
 };
 
+export function toMcpResult(
+  output: ListingImagesOutput,
+): MinimalCallToolResult {
+  if ("error" in output) {
+    return { content: [{ type: "text", text: output.error }], isError: true };
+  }
+  return {
+    content: [
+      {
+        type: "text",
+        text: `${output.images.length} listing images for ${output.asin}, in listing order.`,
+      },
+      ...output.images.map((image) => ({
+        type: "image" as const,
+        data: image.data,
+        mimeType: image.mediaType,
+      })),
+    ],
+  };
+}
+
 export interface ShopperAgentOptions extends CanopyToolsOptions {
   canopy: CanopyClient;
   instructions: string;
@@ -51,20 +80,42 @@ export function createShopperAgent({
   modelId = DEFAULT_MODELS[provider],
   ...toolOptions
 }: ShopperAgentOptions) {
-  const canopyTools = createCanopyTools(canopy, toolOptions);
+  const { tools: canopyTools, readListingImages } = createCanopyTools(
+    canopy,
+    toolOptions,
+  );
 
   if (provider === "claude-code") {
     // Claude Code runs its own tool loop, so the Canopy tools go in as an MCP server.
+    // That bridge returns only text, so the image tool gets a server of its own.
+    const { read_listing_images: _readImages, ...textTools } = canopyTools;
+    const listing = createCustomMcpServer({
+      name: "listing",
+      tools: {
+        read_listing_images: {
+          description: READ_LISTING_IMAGES_DESCRIPTION,
+          inputSchema: z.object({ asin: z.string() }),
+          handler: async (args) =>
+            toMcpResult(
+              await readListingImages((args as { asin: string }).asin),
+            ),
+        },
+      },
+    });
     return new ToolLoopAgent({
       model: claudeCode(modelId, {
         pathToClaudeCodeExecutable: findClaudeExecutable(),
         logger: claudeCodeLogger,
         systemPrompt: instructions,
         tools: ["WebSearch"],
-        mcpServers: { canopy: createAiSdkMcpServer("canopy", canopyTools) },
+        mcpServers: {
+          canopy: createAiSdkMcpServer("canopy", textTools),
+          listing,
+        },
         allowedTools: [
           "WebSearch",
-          ...Object.keys(canopyTools).map((name) => `mcp__canopy__${name}`),
+          ...Object.keys(textTools).map((name) => `mcp__canopy__${name}`),
+          "mcp__listing__read_listing_images",
         ],
         maxTurns: MAX_STEPS,
         hooks: {

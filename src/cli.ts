@@ -147,7 +147,7 @@ async function main(): Promise<number> {
       // Canopy tools log as they start; the rest, such as web search, log per step.
       onStepEnd: (step) => {
         for (const call of step.toolCalls) {
-          const name = call.toolName.replace(/^mcp__canopy__/, "");
+          const name = call.toolName.replace(/^mcp__(canopy|listing)__/, "");
           if (!CANOPY_TOOL_NAMES.has(name)) logCall(name, call.input);
         }
       },

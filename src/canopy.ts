@@ -96,6 +96,7 @@ const product = z.object({
     .nullish()
     .transform((cs) => cs?.[0]?.breadcrumbPath ?? null),
   seller: z.object({ sellerId: z.string(), name: z.string() }).nullish(),
+  imageUrls: z.array(z.string()).nullish(),
 });
 
 const productResponse = z.object({

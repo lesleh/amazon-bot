@@ -13,7 +13,7 @@ function toolsWith(
     const path = new URL(String(url)).pathname.replace("/api/amazon", "");
     return new Response(JSON.stringify(bodies[path] ?? {}), { status });
   });
-  const tools = createCanopyTools(
+  const { tools } = createCanopyTools(
     createCanopyClient({ apiKey: "k", budget, fetch }),
     { onFatalError, maxCandidates },
   );
@@ -53,7 +53,7 @@ describe("createCanopyTools", () => {
   it("reports each call as it starts", async () => {
     const onCall = vi.fn();
     const fetch = vi.fn(async () => new Response("{}"));
-    const tools = createCanopyTools(
+    const { tools } = createCanopyTools(
       createCanopyClient({ apiKey: "k", budget: 5, fetch }),
       { onCall },
     );
@@ -259,6 +259,121 @@ describe("createCanopyTools", () => {
         error: "Z is not one of your candidates. Call get_product first.",
       });
       expect(fetch).toHaveBeenCalledOnce();
+    });
+  });
+
+  describe("read_listing_images", () => {
+    const image =
+      "https://m.media-amazon.com/images/I/81yRYw4vdAL._AC_SL1500_.jpg";
+
+    function imageTools() {
+      const canopyFetch = vi.fn(async (url: URL | RequestInfo) => {
+        const path = new URL(String(url)).pathname.replace("/api/amazon", "");
+        const bodies: Record<string, unknown> = {
+          "/product/offers": offersBody(amazonOffer),
+          "/product": {
+            data: {
+              amazonProduct: {
+                ...productBody.data.amazonProduct,
+                imageUrls: [image],
+              },
+            },
+          },
+        };
+        return new Response(JSON.stringify(bodies[path] ?? {}));
+      });
+      const imageFetch = vi.fn(
+        async () =>
+          new Response("png", { headers: { "content-type": "image/png" } }),
+      );
+      const created = createCanopyTools(
+        createCanopyClient({ apiKey: "k", budget: 5, fetch: canopyFetch }),
+        { imageFetch },
+      );
+      return { ...created, canopyFetch, imageFetch };
+    }
+
+    it("gives get_product an image count instead of the links", async () => {
+      const { tools } = imageTools();
+
+      const output = await tools.get_product.execute?.(
+        { asin: "B000TEST01" },
+        options,
+      );
+
+      expect(output).toMatchObject({ imageCount: 1 });
+      expect(output).not.toHaveProperty("imageUrls");
+    });
+
+    it("returns a candidate's images without a Canopy request", async () => {
+      const { tools, readListingImages, canopyFetch, imageFetch } =
+        imageTools();
+      await tools.get_product.execute?.({ asin: "B000TEST01" }, options);
+      canopyFetch.mockClear();
+
+      const output = await readListingImages("B000TEST01");
+
+      expect(output).toEqual({
+        asin: "B000TEST01",
+        images: [
+          {
+            data: Buffer.from("png").toString("base64"),
+            mediaType: "image/png",
+          },
+        ],
+      });
+      expect(imageFetch).toHaveBeenCalledWith(
+        "https://m.media-amazon.com/images/I/81yRYw4vdAL._AC_SL1000_.jpg",
+      );
+      expect(canopyFetch).not.toHaveBeenCalled();
+    });
+
+    it("works once per candidate", async () => {
+      const { tools, readListingImages } = imageTools();
+      await tools.get_product.execute?.({ asin: "B000TEST01" }, options);
+      await readListingImages("B000TEST01");
+
+      expect(await readListingImages("B000TEST01")).toEqual({
+        error: "You have already seen the images for B000TEST01.",
+      });
+    });
+
+    it("refuses a product that is not a candidate", async () => {
+      const { readListingImages, imageFetch } = imageTools();
+
+      expect(await readListingImages("B000TEST01")).toEqual({
+        error:
+          "B000TEST01 is not one of your candidates. Call get_product first.",
+      });
+      expect(imageFetch).not.toHaveBeenCalled();
+    });
+
+    it("sends the images to the model as files", async () => {
+      const { tools } = imageTools();
+
+      const output = await tools.read_listing_images.toModelOutput?.({
+        toolCallId: "1",
+        input: { asin: "B000TEST01" },
+        output: {
+          asin: "B000TEST01",
+          images: [{ data: "cG5n", mediaType: "image/png" }],
+        },
+      });
+
+      expect(output).toEqual({
+        type: "content",
+        value: [
+          {
+            type: "text",
+            text: "1 listing images for B000TEST01, in listing order.",
+          },
+          {
+            type: "file",
+            mediaType: "image/png",
+            data: { type: "data", data: "cG5n" },
+          },
+        ],
+      });
     });
   });
 });

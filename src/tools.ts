@@ -1,6 +1,7 @@
 import { tool } from "ai";
 import { z } from "zod";
 import { type CanopyClient, CanopyError } from "./canopy.ts";
+import { fetchListingImages, type ListingImage } from "./images.ts";
 
 const asin = z
   .string()
@@ -14,6 +15,7 @@ export const CANOPY_TOOL_NAMES: ReadonlySet<string> = new Set([
   "drop_candidate",
   "get_top_reviews",
   "get_seller",
+  "read_listing_images",
 ]);
 
 export interface CanopyToolsOptions {
@@ -23,7 +25,16 @@ export interface CanopyToolsOptions {
   onFatalError?: (error: CanopyError) => void;
   // Called as each tool starts, for live progress.
   onCall?: (toolName: string, input: Record<string, unknown>) => void;
+  // Fetches listing images, which come from Amazon's image server rather than Canopy.
+  imageFetch?: typeof fetch;
 }
+
+export const READ_LISTING_IMAGES_DESCRIPTION =
+  "Look at a candidate's listing images. Packaging photos often show facts the listing text leaves out, such as the ingredients, nutrition panel, size chart or specifications. Works once per candidate, and only for products that passed get_product. Costs no requests.";
+
+export type ListingImagesOutput =
+  | { asin: string; images: ListingImage[] }
+  | { error: string };
 
 export function createCanopyTools(
   canopy: CanopyClient,
@@ -31,9 +42,12 @@ export function createCanopyTools(
     maxCandidates = DEFAULT_MAX_CANDIDATES,
     onFatalError,
     onCall,
+    imageFetch,
   }: CanopyToolsOptions = {},
 ) {
   const candidates = new Set<string>();
+  const imageUrls = new Map<string, string[]>();
+  const imagesRead = new Set<string>();
   // Products being checked hold a slot too, so parallel calls cannot overshoot the cap.
   const checking = new Set<string>();
 
@@ -54,7 +68,25 @@ export function createCanopyTools(
     }
   }
 
-  return {
+  // Shared by the tool and by the Claude Code image server, which needs the raw output.
+  function readListingImages(asin: string): Promise<ListingImagesOutput> {
+    return safely(async () => {
+      onCall?.("read_listing_images", { asin });
+      const urls = imageUrls.get(asin);
+      if (!candidates.has(asin) || !urls) {
+        throw new Error(
+          `${asin} is not one of your candidates. Call get_product first.`,
+        );
+      }
+      if (imagesRead.has(asin)) {
+        throw new Error(`You have already seen the images for ${asin}.`);
+      }
+      imagesRead.add(asin);
+      return { asin, images: await fetchListingImages(urls, imageFetch) };
+    });
+  }
+
+  const tools = {
     search_amazon: tool({
       description:
         "Search amazon.co.uk. Returns up to 20 products with price, rating, rating count and a sponsored flag. Prime is not known yet: get_product checks it. Costs one request.",
@@ -100,11 +132,16 @@ export function createCanopyTools(
             if (buyBox?.isPrime !== true) {
               throw new Error(`${asin} is not available with Prime. Skip it.`);
             }
-            const { seller: _listingSeller, ...product } =
-              await canopy.product(asin);
+            const {
+              seller: _listingSeller,
+              imageUrls: urls,
+              ...product
+            } = await canopy.product(asin);
             candidates.add(asin);
+            imageUrls.set(asin, urls ?? []);
             return {
               ...product,
+              imageCount: urls?.length ?? 0,
               price: buyBox.price ?? product.price,
               buyBox: {
                 seller: buyBox.seller,
@@ -161,5 +198,30 @@ export function createCanopyTools(
           return canopy.seller(sellerId);
         }),
     }),
+
+    read_listing_images: tool({
+      description: READ_LISTING_IMAGES_DESCRIPTION,
+      inputSchema: z.object({ asin }),
+      execute: ({ asin }) => readListingImages(asin),
+      toModelOutput: ({ output }) =>
+        "error" in output
+          ? { type: "json", value: output }
+          : {
+              type: "content",
+              value: [
+                {
+                  type: "text",
+                  text: `${output.images.length} listing images for ${output.asin}, in listing order.`,
+                },
+                ...output.images.map((image) => ({
+                  type: "file" as const,
+                  mediaType: image.mediaType,
+                  data: { type: "data" as const, data: image.data },
+                })),
+              ],
+            },
+    }),
   };
+
+  return { tools, readListingImages };
 }

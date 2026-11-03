@@ -67,7 +67,7 @@ describe("createCanopyClient", () => {
 
     const product = await canopy.product("B000TEST01");
 
-    expect(product).not.toHaveProperty("imageUrls");
+    expect(product.imageUrls).toEqual(["a.jpg", "b.jpg"]);
     expect(product).not.toHaveProperty("url");
     expect(product.price).toBe("£12.50");
     expect(product.categories).toBe("Pet Supplies > Cats");
