@@ -3,7 +3,11 @@ import {
   anthropic,
 } from "@ai-sdk/anthropic";
 import { stepCountIs, ToolLoopAgent } from "ai";
-import { claudeCode, createAiSdkMcpServer } from "ai-sdk-provider-claude-code";
+import {
+  claudeCode,
+  createAiSdkMcpServer,
+  type Logger,
+} from "ai-sdk-provider-claude-code";
 import type { CanopyClient } from "./canopy.ts";
 import { findClaudeExecutable } from "./claude-path.ts";
 import { type CanopyToolsOptions, createCanopyTools } from "./tools.ts";
@@ -19,6 +23,19 @@ export const DEFAULT_MODELS: Record<ProviderName, string> = {
 };
 
 const MAX_STEPS = 40;
+
+// The provider knows only the aliases, which resolve to older models, so it warns about full IDs.
+export const isUnknownModelWarning = (message: string) =>
+  message.includes("Unknown model ID");
+
+const claudeCodeLogger: Logger = {
+  debug: () => {},
+  info: () => {},
+  warn: (message) => {
+    if (!isUnknownModelWarning(message)) console.warn(message);
+  },
+  error: (message) => console.error(message),
+};
 
 export interface ShopperAgentOptions extends CanopyToolsOptions {
   canopy: CanopyClient;
@@ -41,6 +58,7 @@ export function createShopperAgent({
     return new ToolLoopAgent({
       model: claudeCode(modelId, {
         pathToClaudeCodeExecutable: findClaudeExecutable(),
+        logger: claudeCodeLogger,
         systemPrompt: instructions,
         tools: ["WebSearch"],
         mcpServers: { canopy: createAiSdkMcpServer("canopy", canopyTools) },

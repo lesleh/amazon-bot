@@ -4,6 +4,7 @@ import {
   createShopperAgent,
   DEFAULT_MODELS,
   DEFAULT_PROVIDER,
+  isUnknownModelWarning,
   PROVIDERS,
   type ProviderName,
 } from "./agent.ts";
@@ -78,13 +79,16 @@ export function parseCliArgs(argv: string[]): CliOptions {
 }
 
 // The Claude Code provider warns above 20 turns, but a full run needs more.
+// It also warns about full model IDs, which are correct.
 function logWarnings({ warnings }: { warnings: Warning[] }): void {
   for (const warning of warnings) {
     const text =
       "message" in warning
         ? warning.message
         : `${warning.type}: ${warning.feature}${warning.details ? ` (${warning.details})` : ""}`;
-    if (!text.startsWith("High maxTurns")) console.error(`Warning: ${text}`);
+    if (!text.startsWith("High maxTurns") && !isUnknownModelWarning(text)) {
+      console.error(`Warning: ${text}`);
+    }
   }
 }
 
