@@ -33,7 +33,7 @@ To give the agent facts about your household with every request, copy `profile.e
 
 ## Recording and replay
 
-Each Canopy request costs money, so you can record a run once and replay it while you change the prompt:
+Each Canopy request costs money, so every real run records its Canopy responses in `recordings/`, in a folder named after the run. The terminal shows the folder at the end. You can replay any run for free while you change the prompt. Use `--record <dir>` to choose the folder yourself:
 
 ```sh
 pnpm shop "dry cat food for an adult cat" --record recordings/cat-food

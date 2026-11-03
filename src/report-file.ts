@@ -3,11 +3,12 @@ import { mkdir, writeFile } from "node:fs/promises";
 import { fileURLToPath } from "node:url";
 
 const REPORTS_DIR = new URL("../reports/", import.meta.url);
+const RECORDINGS_DIR = new URL("../recordings/", import.meta.url);
 
 const pad = (n: number) => String(n).padStart(2, "0");
 
-// Dated and named after the request, so reports sort by time and never overwrite each other.
-export function reportFileName(request: string, date: Date): string {
+// Dated and named after the request, so runs sort by time and never overwrite each other.
+export function runName(request: string, date: Date): string {
   const slug =
     request
       .toLowerCase()
@@ -16,8 +17,15 @@ export function reportFileName(request: string, date: Date): string {
       .slice(0, 60)
       .replace(/-$/, "") || "report";
   const stamp = `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}-${pad(date.getHours())}${pad(date.getMinutes())}`;
-  return `${stamp}-${slug}.html`;
+  return `${stamp}-${slug}`;
 }
+
+export const reportFileName = (request: string, date: Date) =>
+  `${runName(request, date)}.html`;
+
+// Every real run records its Canopy responses, so any run can be replayed for free.
+export const defaultRecordingDir = (request: string, date: Date) =>
+  fileURLToPath(new URL(`${runName(request, date)}/`, RECORDINGS_DIR));
 
 export async function saveReport(
   html: string,

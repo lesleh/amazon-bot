@@ -1,3 +1,4 @@
+import { existsSync } from "node:fs";
 import { parseArgs } from "node:util";
 import type { Warning } from "ai";
 import {
@@ -13,7 +14,11 @@ import { renderReport } from "./html.ts";
 import { loadInstructions, loadProfile, withProfile } from "./prompt.ts";
 import { recordingFetch, replayFetch } from "./recording.ts";
 import { finalReport } from "./report.ts";
-import { openInBrowser, saveReport } from "./report-file.ts";
+import {
+  defaultRecordingDir,
+  openInBrowser,
+  saveReport,
+} from "./report-file.ts";
 import type { ShoppingReport } from "./shopping-report.ts";
 import { CANOPY_TOOL_NAMES, DEFAULT_MAX_CANDIDATES } from "./tools.ts";
 import { formatModelCosts, formatUsage, type ModelCost } from "./usage.ts";
@@ -123,14 +128,19 @@ async function main(): Promise<number> {
     return 2;
   }
 
+  let recordDir: string | undefined;
+  let canopyFetch: typeof fetch;
+  if (recording?.mode === "replay") {
+    canopyFetch = replayFetch(recording.dir);
+  } else {
+    recordDir =
+      recording?.dir ?? defaultRecordingDir(options.request, new Date());
+    canopyFetch = recordingFetch(recordDir);
+  }
   const canopy = createCanopyClient({
     apiKey,
     budget: options.budget,
-    ...(recording && {
-      fetch: replaying
-        ? replayFetch(recording.dir)
-        : recordingFetch(recording.dir),
-    }),
+    fetch: canopyFetch,
   });
   const abort = new AbortController();
   let report: ShoppingReport | undefined;
@@ -207,6 +217,9 @@ async function main(): Promise<number> {
       ),
   );
   for (const line of formatModelCosts(modelUsage ?? {})) console.error(line);
+  if (recordDir && existsSync(recordDir)) {
+    console.error(`Recorded to ${recordDir}. Replay it with --replay.`);
+  }
 
   if (result.finishReason !== "stop") {
     console.error(
