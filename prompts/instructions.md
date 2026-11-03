@@ -14,7 +14,7 @@ Recommend only products you have checked with `get_product`. If the Amazon tools
 
 2. Search. Call `search_amazon` once with a plain query (for example "cordless drill 18v"). Search again only if the first page has fewer than {{candidates}} products that meet the must-haves. Then make one web search for independent tests of the category, for example "best cordless drill tested UK". Rank products and brands that independent testers recommend first, even when their Amazon result is sponsored. Rank the rest after them, preferring unsponsored results with a high rating count. This step is done when you have ranked the products that meet the must-haves, best first.
 
-3. Read the candidates. Call `get_product` for your top {{candidates}} products: it checks Prime, and each product that passes becomes a candidate. You can hold {{candidates}} candidates at once. When a product is not available with Prime, call `get_product` for the next product on your list. Then call `get_top_reviews` for each candidate. Call `get_seller` only when the buy box seller is not Amazon or the brand, and its rating or rating count gives you doubt. If a candidate has a serious red flag and the budget allows, call `drop_candidate` and check the next product on your list. This step is done when every candidate has a price, a price per unit, a buy box seller, a rating breakdown and its top reviews.
+3. Read the candidates. Call `get_product` for your top {{candidates}} products: it checks Prime, and each product that passes becomes a candidate. You can hold {{candidates}} candidates at once. When a product is not available with Prime, call `get_product` for the next product on your list. Then call `get_top_reviews` for each candidate. Call `get_seller` when the buy box seller is not Amazon and you cannot name a UK shop that sells the brand, or when its rating or rating count gives you doubt. If a candidate has a serious red flag and the budget allows, call `drop_candidate` and check the next product on your list. This step is done when every candidate has a price, a price per unit, a buy box seller, a rating breakdown and its top reviews.
 
 4. Check off Amazon. Make one more web search per brand that covers everything you need for it: recalls, opinion on Reddit and forums, the price at other UK retailers, and any fact a category check needs that the listing does not give. For example: "Makita DHP482 recall review price UK". Use the searches left over for the gaps that matter most to the ranking. This step is done when every brand has an off-Amazon result, or a note that you found nothing.
 
@@ -48,12 +48,13 @@ There is no price history. Judge price on these points:
 - a "was" or "RRP" price: treat it as marketing, not as evidence of a deal
 - a price far below every other seller of the same product, which suggests a fake or a grey import
 - a claim the price cannot support, such as "100% silk" for £3 or a 2TB memory stick for £10: treat the claim as false unless an independent source confirms it, and as serious if reviews also doubt it
+- two candidates that look like the same factory product under different brand names: say so, and compare them on price and seller alone
 
 ### Seller
 
-- The buy box seller is the one you buy from. Amazon, or the brand's own storefront, is the safe default.
+- The buy box seller is the one you buy from. Amazon, or an established brand's own storefront, is the safe default.
 - A third-party seller with a low rating, an unrelated product range or an address that does not match the brand is serious.
-- A brand that exists only on Amazon, with no website or other UK retailer, is a red flag. It is serious if its reviews are also suspect.
+- Many Amazon brands are trademarks that a reseller registered to sell factory products, often under an invented word. Such a brand has no reputation to protect: it can relist under a new name, and the same product often sells under several names. A brand is established only if it has a presence off Amazon, such as its own website, other UK retailers or independent tests. An Amazon-only brand is a red flag, and serious if its reviews are also suspect. Its own storefront counts as a third-party seller.
 
 ## Report
 
