@@ -303,6 +303,7 @@ describe("createCanopyTools", () => {
 
       expect(output).toMatchObject({ imageCount: 1 });
       expect(output).not.toHaveProperty("imageUrls");
+      expect(output).not.toHaveProperty("mainImageUrl");
     });
 
     it("returns a candidate's images without a Canopy request", async () => {
@@ -374,6 +375,112 @@ describe("createCanopyTools", () => {
           },
         ],
       });
+    });
+  });
+
+  describe("submit_report", () => {
+    const candidate = {
+      asin: "B000TEST01",
+      rank: 1,
+      name: "Drill",
+      price: "£39.99",
+      pricePerUnit: "£39.99 each",
+      seller: "Amazon",
+      rating: 4.5,
+      ratingCount: 100,
+      verdict: "Good.",
+      facts: [],
+      redFlags: [],
+    };
+    const report = {
+      recommendedAsin: "B000TEST01",
+      headline: "Buy the drill.",
+      summary: "It passed every check.",
+      candidates: [candidate],
+      dropped: [],
+      couldNotCheck: [],
+      defaults: [],
+      sources: [],
+    };
+
+    async function checkedTools() {
+      const onReport = vi.fn();
+      const canopyFetch = vi.fn(async (url: URL | RequestInfo) => {
+        const path = new URL(String(url)).pathname.replace("/api/amazon", "");
+        const bodies: Record<string, unknown> = {
+          "/product/offers": offersBody(amazonOffer),
+          "/product": {
+            data: {
+              amazonProduct: {
+                ...productBody.data.amazonProduct,
+                mainImageUrl: "https://m.media-amazon.com/images/I/main.jpg",
+                imageUrls: ["https://m.media-amazon.com/images/I/a.jpg"],
+              },
+            },
+          },
+        };
+        return new Response(JSON.stringify(bodies[path] ?? {}));
+      });
+      const { tools } = createCanopyTools(
+        createCanopyClient({ apiKey: "k", budget: 5, fetch: canopyFetch }),
+        { onReport },
+      );
+      await tools.get_product.execute?.({ asin: "B000TEST01" }, options);
+      return { tools, onReport };
+    }
+
+    it("passes the report on with links and packshots", async () => {
+      const { tools, onReport } = await checkedTools();
+
+      const output = await tools.submit_report.execute?.(report, options);
+
+      expect(output).toMatchObject({ saved: true });
+      expect(onReport).toHaveBeenCalledWith(
+        expect.objectContaining({
+          candidates: [
+            expect.objectContaining({
+              url: "https://www.amazon.co.uk/dp/B000TEST01",
+              imageUrl: "https://m.media-amazon.com/images/I/main.jpg",
+            }),
+          ],
+        }),
+      );
+    });
+
+    it("refuses a product that was never checked", async () => {
+      const { tools, onReport } = await checkedTools();
+
+      const output = await tools.submit_report.execute?.(
+        {
+          ...report,
+          candidates: [
+            ...report.candidates,
+            { ...candidate, asin: "B000OTHER1", rank: 2 },
+          ],
+        },
+        options,
+      );
+
+      expect(output).toEqual({
+        error:
+          "You did not check B000OTHER1 with get_product. Report only products you checked.",
+      });
+      expect(onReport).not.toHaveBeenCalled();
+    });
+
+    it("refuses to recommend a dropped product", async () => {
+      const { tools, onReport } = await checkedTools();
+      await tools.drop_candidate.execute?.(
+        { asin: "B000TEST01", reason: "fake reviews" },
+        options,
+      );
+
+      const output = await tools.submit_report.execute?.(report, options);
+
+      expect(output).toEqual({
+        error: "B000TEST01 is not one of the candidates in your report.",
+      });
+      expect(onReport).not.toHaveBeenCalled();
     });
   });
 });

@@ -8,9 +8,9 @@ export interface ListingImage {
 }
 
 // 1,000 pixels keeps small print such as a nutrition panel readable at a third of the tokens of 1,500.
-export function resizedImageUrl(url: string): string | undefined {
+export function resizedImageUrl(url: string, size = 1000): string | undefined {
   const match = AMAZON_IMAGE.exec(url);
-  return match ? `${match[1]}._AC_SL1000_.${match[2]}` : undefined;
+  return match ? `${match[1]}._AC_SL${size}_.${match[2]}` : undefined;
 }
 
 export async function fetchListingImages(
@@ -18,7 +18,7 @@ export async function fetchListingImages(
   fetchFn: typeof fetch = fetch,
 ): Promise<ListingImage[]> {
   const resized = urls
-    .map(resizedImageUrl)
+    .map((url) => resizedImageUrl(url))
     .filter((url): url is string => url !== undefined)
     .slice(0, MAX_IMAGES);
   return Promise.all(

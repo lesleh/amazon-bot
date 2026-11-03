@@ -2,3 +2,4 @@ node_modules/
 .env
 recordings/
 profile.md
+reports/

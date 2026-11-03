@@ -2,6 +2,11 @@ import { tool } from "ai";
 import { z } from "zod";
 import { type CanopyClient, CanopyError } from "./canopy.ts";
 import { fetchListingImages, type ListingImage } from "./images.ts";
+import {
+  productUrl,
+  reportSchema,
+  type ShoppingReport,
+} from "./shopping-report.ts";
 
 const asin = z
   .string()
@@ -16,6 +21,7 @@ export const CANOPY_TOOL_NAMES: ReadonlySet<string> = new Set([
   "get_top_reviews",
   "get_seller",
   "read_listing_images",
+  "submit_report",
 ]);
 
 export interface CanopyToolsOptions {
@@ -27,6 +33,8 @@ export interface CanopyToolsOptions {
   onCall?: (toolName: string, input: Record<string, unknown>) => void;
   // Fetches listing images, which come from Amazon's image server rather than Canopy.
   imageFetch?: typeof fetch;
+  // Receives the finished report from submit_report.
+  onReport?: (report: ShoppingReport) => void;
 }
 
 export const READ_LISTING_IMAGES_DESCRIPTION =
@@ -43,10 +51,13 @@ export function createCanopyTools(
     onFatalError,
     onCall,
     imageFetch,
+    onReport,
   }: CanopyToolsOptions = {},
 ) {
   const candidates = new Set<string>();
   const imageUrls = new Map<string, string[]>();
+  // The packshot, for the report. The gallery in imageUrls is what the model reads.
+  const mainImages = new Map<string, string>();
   const imagesRead = new Set<string>();
   // Products being checked hold a slot too, so parallel calls cannot overshoot the cap.
   const checking = new Set<string>();
@@ -134,11 +145,13 @@ export function createCanopyTools(
             }
             const {
               seller: _listingSeller,
+              mainImageUrl,
               imageUrls: urls,
               ...product
             } = await canopy.product(asin);
             candidates.add(asin);
             imageUrls.set(asin, urls ?? []);
+            if (mainImageUrl) mainImages.set(asin, mainImageUrl);
             return {
               ...product,
               imageCount: urls?.length ?? 0,
@@ -220,6 +233,52 @@ export function createCanopyTools(
                 })),
               ],
             },
+    }),
+
+    submit_report: tool({
+      description:
+        "Submit the finished report. Call it once, last, after every check. Write plain sentences without Markdown. Returns an error if the report names a product you did not check with get_product.",
+      inputSchema: reportSchema,
+      execute: async (report) => {
+        onCall?.("submit_report", {});
+        // imageUrls holds every product that passed get_product, including dropped ones.
+        const unchecked = [...report.candidates, ...report.dropped]
+          .map((product) => product.asin)
+          .filter((asin) => !imageUrls.has(asin));
+        if (unchecked.length > 0) {
+          return {
+            error: `You did not check ${unchecked.join(", ")} with get_product. Report only products you checked.`,
+          };
+        }
+        const { recommendedAsin } = report;
+        if (
+          recommendedAsin !== null &&
+          (!candidates.has(recommendedAsin) ||
+            !report.candidates.some((c) => c.asin === recommendedAsin))
+        ) {
+          return {
+            error: `${recommendedAsin} is not one of the candidates in your report.`,
+          };
+        }
+        onReport?.({
+          ...report,
+          candidates: report.candidates
+            .toSorted((a, b) => a.rank - b.rank)
+            .map((c) => ({
+              ...c,
+              url: productUrl(c.asin),
+              imageUrl: mainImages.get(c.asin) ?? imageUrls.get(c.asin)?.[0],
+            })),
+          dropped: report.dropped.map((d) => ({
+            ...d,
+            url: productUrl(d.asin),
+          })),
+        });
+        return {
+          saved: true,
+          next: "Reply with one short sentence, then stop.",
+        };
+      },
     }),
   };
 

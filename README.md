@@ -18,12 +18,13 @@ You need Node 24 or later. By default the agent runs through Claude Code, so you
 pnpm shop "a cordless drill for light DIY, under £80"
 ```
 
-The report goes to standard output. Progress and request counts go to standard error.
+The agent saves its report as an HTML page in `reports/` and opens it in your browser. The page shows the recommended product, a side-by-side comparison of the candidates, the red flags for each one and the sources. The terminal shows the recommendation in one sentence, the path to the page, and progress and request counts. The `reports/` folder is not committed.
 
 Options:
 
 - `--budget <n>`: the maximum number of Canopy requests for one run (default 15). The free Canopy plan allows 100 a month.
 - `--provider <name>`: `claude-code` (default) uses your Claude Code sign-in. `anthropic` uses the Anthropic API and needs `ANTHROPIC_API_KEY`.
+- `--no-open`: save the report without opening it.
 - `--model <id>`: the Claude model to use (default `claude-haiku-5-5`). Use full model IDs: through Claude Code, aliases such as `haiku` can resolve to an older model.
 
 ## Household profile

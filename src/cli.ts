@@ -9,14 +9,17 @@ import {
   type ProviderName,
 } from "./agent.ts";
 import { createCanopyClient } from "./canopy.ts";
+import { renderReport } from "./html.ts";
 import { loadInstructions, loadProfile, withProfile } from "./prompt.ts";
 import { recordingFetch, replayFetch } from "./recording.ts";
 import { finalReport } from "./report.ts";
+import { openInBrowser, saveReport } from "./report-file.ts";
+import type { ShoppingReport } from "./shopping-report.ts";
 import { CANOPY_TOOL_NAMES, DEFAULT_MAX_CANDIDATES } from "./tools.ts";
 import { formatModelCosts, formatUsage, type ModelCost } from "./usage.ts";
 import { MAX_WEB_SEARCHES } from "./web-search-limit.ts";
 
-const USAGE = `Usage: pnpm shop "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>] [--record <dir> | --replay <dir>]
+const USAGE = `Usage: pnpm shop "<what you want>" [--budget 15] [--provider ${PROVIDERS.join("|")}] [--model <id>] [--record <dir> | --replay <dir>] [--no-open]
 
 Example: pnpm shop "a cordless drill for light DIY, under £80"`;
 
@@ -25,6 +28,7 @@ export interface CliOptions {
   budget: number;
   provider: ProviderName;
   model: string;
+  open: boolean;
   recording?: { mode: "record" | "replay"; dir: string };
 }
 
@@ -38,7 +42,9 @@ export function parseCliArgs(argv: string[]): CliOptions {
   const { values, positionals } = parseArgs({
     args: argv,
     allowPositionals: true,
+    allowNegative: true,
     options: {
+      open: { type: "boolean", default: true },
       budget: { type: "string", default: "15" },
       provider: { type: "string", default: DEFAULT_PROVIDER },
       model: { type: "string" },
@@ -74,6 +80,7 @@ export function parseCliArgs(argv: string[]): CliOptions {
     budget,
     provider,
     model: values.model ?? DEFAULT_MODELS[provider],
+    open: values.open,
     ...(recording && { recording }),
   };
 }
@@ -126,6 +133,7 @@ async function main(): Promise<number> {
     }),
   });
   const abort = new AbortController();
+  let report: ShoppingReport | undefined;
   const agent = createShopperAgent({
     canopy,
     instructions: await loadInstructions({
@@ -137,6 +145,9 @@ async function main(): Promise<number> {
     modelId: options.model,
     onFatalError: (error) => abort.abort(error),
     onCall: logCall,
+    onReport: (submitted) => {
+      report = submitted;
+    },
   });
 
   let result: Awaited<ReturnType<typeof agent.generate>>;
@@ -166,7 +177,28 @@ async function main(): Promise<number> {
   const modelUsage = claudeCodeMetadata?.modelUsage as
     | Record<string, ModelCost>
     | undefined;
-  console.log(finalReport(lastStep?.content ?? []));
+  if (report) {
+    const generatedAt = new Date();
+    const path = await saveReport(
+      renderReport(report, {
+        request: options.request,
+        generatedAt,
+        model: options.model,
+        canopyRequests: canopy.requestsUsed,
+        budget: options.budget,
+        replayed: replaying,
+        ...(typeof costUsd === "number" && { modelCostUsd: costUsd }),
+      }),
+      options.request,
+      generatedAt,
+    );
+    console.log(`${report.headline}\n\nReport: ${path}`);
+    if (options.open) openInBrowser(path);
+  } else {
+    // Without a submitted report, the agent's last message is the best there is.
+    console.error("The agent did not submit a report. Its last message:\n");
+    console.log(finalReport(lastStep?.content ?? []));
+  }
   console.error(
     `\nCanopy requests: ${canopy.requestsUsed} of ${options.budget}${replaying ? " (replayed, none sent)" : ""}.\n` +
       formatUsage(

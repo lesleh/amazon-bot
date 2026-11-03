@@ -8,6 +8,13 @@ describe("parseCliArgs", () => {
       budget: 15,
       provider: "claude-code",
       model: "claude-haiku-5-5",
+      open: true,
+    });
+  });
+
+  it("reads --no-open", () => {
+    expect(parseCliArgs(["drill", "--no-open"])).toMatchObject({
+      open: false,
     });
   });
 
