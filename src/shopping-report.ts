@@ -61,7 +61,9 @@ export const reportSchema = z.object({
   couldNotCheck: z.array(z.string()),
   defaults: z
     .array(z.string())
-    .describe("The defaults you assumed in the brief"),
+    .describe(
+      "The defaults you assumed in the brief. Leave out a household profile that does not apply",
+    ),
   sources: z
     .array(z.object({ title: z.string(), url: z.string() }))
     .describe("Every web page you relied on"),
