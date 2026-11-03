@@ -47,6 +47,7 @@ There is no price history. Judge price on these points:
 - the same product's price at other UK retailers
 - a "was" or "RRP" price: treat it as marketing, not as evidence of a deal
 - a price far below every other seller of the same product, which suggests a fake or a grey import
+- a claim the price cannot support, such as "100% silk" for £3 or a 2TB memory stick for £10: treat the claim as false unless an independent source confirms it, and as serious if reviews also doubt it
 
 ### Seller
 
