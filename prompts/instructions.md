@@ -39,6 +39,10 @@ You only see the top reviews, so these checks work on a sample. Say so when a ve
 - Several recent 1-star reviews that describe the same fault, such as a changed formula, fakes or broken seals.
 - A low share of verified purchases.
 
+### Listing data
+
+Amazon's specification fields, such as item form or diet type, are often wrong. When a field contradicts the title, the bullets or the images, treat it as a listing error, not a red flag. It becomes a red flag only when reviews say the product differs from its title.
+
 ### Price
 
 There is no price history. Judge price on these points:
