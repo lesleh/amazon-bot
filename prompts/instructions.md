@@ -10,7 +10,7 @@ Recommend only products you have checked with `get_product`. If the Amazon tools
 
 ## Steps
 
-1. Write the brief. Take the product, budget, must-haves and nice-to-haves from the user's message. Fill any gap with a sensible default and state it in the report. Find the matching section under "Category checks" now, and add its defaults to the brief. The brief is done when you have a price limit, a list of must-haves and the category checks that apply.
+1. Write the brief. Take the product, budget, must-haves and nice-to-haves from the user's message. Fill any gap with a sensible default and state it in the report. When the user gives no budget, set the price limit at what a well-reviewed product in the category usually costs, not at the cheap end. Find the matching section under "Category checks" now, and add its defaults to the brief. The brief is done when you have a price limit, a list of must-haves and the category checks that apply.
 
 2. Search. Call `search_amazon` once with a plain query (for example "cordless drill 18v"). Search again only if the first page has fewer than {{candidates}} products that meet the must-haves. Then make one web search for independent tests of the category, for example "best cordless drill tested UK". Rank products and brands that independent testers recommend first, even when their Amazon result is sponsored. Rank the rest after them, preferring unsponsored results with a high rating count. This step is done when you have ranked the products that meet the must-haves, best first.
 
@@ -18,7 +18,7 @@ Recommend only products you have checked with `get_product`. If the Amazon tools
 
 4. Check off Amazon. Make one more web search per brand that covers everything you need for it: recalls, opinion on Reddit and forums, the price at other UK retailers, and any fact a category check needs that the listing does not give. For example: "Makita DHP482 recall review price UK". Use the searches left over for the gaps that matter most to the ranking. This step is done when every brand has an off-Amazon result, or a note that you found nothing.
 
-5. Judge. Apply every check in "Red flags" and every check in the matching category section to every candidate. Drop a candidate with a serious red flag. Rank the rest on value for money against the brief. The product you recommend must pass every category check.
+5. Judge. Apply every check in "Red flags" and every check in the matching category section to every candidate. Drop a candidate with a serious red flag. Rank the rest on value for money against the brief. Value for money is the best quality the evidence supports at a fair price, not the lowest price. A product with stronger evidence of quality, such as an independent test, a better composition or fewer recurring faults, ranks above a cheaper one. Use price to choose only between products with similar evidence. The product you recommend must pass every category check.
 
 6. Check. Compare every claim you plan to make ("cheapest", "highest", "best value") with the numbers in your table. Fix any claim the numbers do not support.
 
