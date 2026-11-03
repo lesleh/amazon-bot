@@ -146,6 +146,75 @@ describe("createCanopyTools", () => {
       buyBox: { seller: { name: "Amazon" }, fulfilledByAmazon: true },
     });
     expect(output).not.toHaveProperty("seller");
+    expect(output).not.toHaveProperty("nextStep");
+  });
+
+  describe("reviews for a third-party seller", () => {
+    function thirdPartyTools() {
+      return toolsWith({
+        "/product/offers": offersBody({
+          ...amazonOffer,
+          seller: { id: "S1", name: "BeiYu Store" },
+        }),
+        "/product": productBody,
+        "/product/top-reviews": { data: { amazonProduct: { topReviews: [] } } },
+        "/seller": {
+          data: { amazonSeller: { sellerId: "S1", name: "BeiYu Store" } },
+        },
+      });
+    }
+
+    it("waits once for the seller check, without a request", async () => {
+      const { tools, fetch } = thirdPartyTools();
+      await tools.get_product.execute?.({ asin: "B000TEST01" }, options);
+      fetch.mockClear();
+
+      const first = await tools.get_top_reviews.execute?.(
+        { asin: "B000TEST01" },
+        options,
+      );
+      const second = await tools.get_top_reviews.execute?.(
+        { asin: "B000TEST01" },
+        options,
+      );
+
+      expect(first).toHaveProperty(
+        "error",
+        expect.stringContaining("get_seller for S1"),
+      );
+      expect(second).toEqual([]);
+      expect(fetch).toHaveBeenCalledOnce();
+    });
+
+    it("gives reviews straight away once the seller is checked", async () => {
+      const { tools } = thirdPartyTools();
+      await tools.get_product.execute?.({ asin: "B000TEST01" }, options);
+      await tools.get_seller.execute?.({ sellerId: "S1" }, options);
+
+      expect(
+        await tools.get_top_reviews.execute?.({ asin: "B000TEST01" }, options),
+      ).toEqual([]);
+    });
+  });
+
+  it("tells the model to check a third-party seller before its reviews", async () => {
+    const { tools } = toolsWith({
+      "/product/offers": offersBody({
+        ...amazonOffer,
+        seller: { id: "S1", name: "BeiYu Store" },
+      }),
+      "/product": productBody,
+    });
+
+    const output = await tools.get_product.execute?.(
+      { asin: "B000TEST01" },
+      options,
+    );
+
+    expect(output).toHaveProperty(
+      "nextStep",
+      expect.stringContaining("call get_seller"),
+    );
   });
 
   it.each([

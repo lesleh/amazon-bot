@@ -14,6 +14,8 @@ const asin = z
 
 export const DEFAULT_MAX_CANDIDATES = 4;
 
+const AMAZON_SELLER = /^amazon(\.co\.uk)?$/i;
+
 export const CANOPY_TOOL_NAMES: ReadonlySet<string> = new Set([
   "search_amazon",
   "get_product",
@@ -59,6 +61,10 @@ export function createCanopyTools(
   // The packshot, for the report. The gallery in imageUrls is what the model reads.
   const mainImages = new Map<string, string>();
   const imagesRead = new Set<string>();
+  // Third-party buy box sellers by candidate, so reviews wait for the cheaper checks.
+  const thirdPartySellers = new Map<string, string>();
+  const sellersChecked = new Set<string>();
+  const reviewsDeferred = new Set<string>();
   // Products being checked hold a slot too, so parallel calls cannot overshoot the cap.
   const checking = new Set<string>();
 
@@ -152,8 +158,16 @@ export function createCanopyTools(
             candidates.add(asin);
             imageUrls.set(asin, urls ?? []);
             if (mainImageUrl) mainImages.set(asin, mainImageUrl);
+            const thirdParty = !AMAZON_SELLER.test(buyBox.seller?.name ?? "");
+            if (thirdParty && buyBox.seller?.id) {
+              thirdPartySellers.set(asin, buyBox.seller.id);
+            }
             return {
               ...product,
+              ...(thirdParty && {
+                nextStep:
+                  "The buy box seller is a third party. Check the listing against the must-haves, and call get_seller unless the brand is sold in UK shops, before you call get_top_reviews.",
+              }),
               imageCount: urls?.length ?? 0,
               price: buyBox.price ?? product.price,
               buyBox: {
@@ -185,7 +199,7 @@ export function createCanopyTools(
 
     get_top_reviews: tool({
       description:
-        "Get a candidate's top reviews (about 10): text, rating, verified purchase flag, reviewer and photo count. Works only for products that passed get_product. Costs one request.",
+        "Get a candidate's top reviews (about 10): text, rating, verified purchase flag, reviewer and photo count. Works only for products that passed get_product. Call it only after the candidate has passed its must-have and seller checks, because reviews for a candidate you then drop waste a request. Costs one request.",
       inputSchema: z.object({ asin }),
       execute: ({ asin }) =>
         safely(async () => {
@@ -193,6 +207,17 @@ export function createCanopyTools(
           if (!candidates.has(asin)) {
             throw new Error(
               `${asin} is not one of your candidates. Call get_product first.`,
+            );
+          }
+          const sellerId = thirdPartySellers.get(asin);
+          if (
+            sellerId &&
+            !sellersChecked.has(sellerId) &&
+            !reviewsDeferred.has(asin)
+          ) {
+            reviewsDeferred.add(asin);
+            throw new Error(
+              `${asin} has a third-party seller. Check its listing against the must-haves and call get_seller for ${sellerId} first, then drop it or call get_top_reviews again. If the seller needs no check, call get_top_reviews again now. This refusal cost no request.`,
             );
           }
           return canopy.topReviews(asin);
@@ -208,6 +233,7 @@ export function createCanopyTools(
       execute: ({ sellerId }) =>
         safely(() => {
           onCall?.("get_seller", { sellerId });
+          sellersChecked.add(sellerId);
           return canopy.seller(sellerId);
         }),
     }),
